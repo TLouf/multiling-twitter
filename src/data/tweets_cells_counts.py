@@ -3,20 +3,18 @@ import geopandas as geopd
 import json
 from shapely.geometry import Point
 
-def increment_counts(cells_tweets_counts, tweets_gdf, cells_df):
+def increment_counts(total_counts, tweets_within_cells, cell_col):
     '''
-    Increments the counts of tweets sent from each cell in 'cells_tweets_counts'
-    with the ones in 'tweets_gdf' if they were sent from a cell of 'cell_df'.
+    Increments the counts of tweets sent from each cell in 'total_counts'
+    with the ones in 'tweets_within_cells'.
     '''
-    tweets_within_cells = geopd.sjoin(tweets_gdf, cells_df, op='within', rsuffix='cell')
-    new_cells_tweets_counts = tweets_within_cells.groupby(['index_cell']).size()
-    new_cells_tweets_counts.rename('count_new', inplace=True)
-    new_cells_tweets_counts = new_cells_tweets_counts.to_frame()
-    two_counts_df = new_cells_tweets_counts.join(cells_tweets_counts, how='outer')
+    new_counts = tweets_within_cells.groupby([cell_col]).size()
+    new_counts = pd.DataFrame(new_counts.rename('count_new'), dtype='int64')
+    two_counts_df = new_counts.join(total_counts, how='outer')
     two_counts_df.fillna(value=0, inplace=True)
-    cells_tweets_counts = two_counts_df['count'] + two_counts_df['count_new']
-    cells_tweets_counts = cells_tweets_counts.rename('count')
-    return cells_tweets_counts
+    total_counts = two_counts_df['count'] + two_counts_df['count_new']
+    total_counts.rename('count', inplace=True)
+    return total_counts
 
 
 def get_counts(tweets_file_path, cells_df, dtype_dict=None,
@@ -28,7 +26,8 @@ def get_counts(tweets_file_path, cells_df, dtype_dict=None,
     cells_tweets_counts = pd.Series(name='count', dtype='int64')
     crs = {'init': data_proj}
     with open(tweets_file_path) as f:
-        chunks = pd.read_json(f, lines=True, chunksize=chunksize, dtype=dtype_dict)
+        chunks = pd.read_json(f, lines=True, chunksize=chunksize,
+                              dtype=dtype_dict)
         while True:
             try:
                 # The following can return a ValueError when parsing json,
@@ -37,8 +36,10 @@ def get_counts(tweets_file_path, cells_df, dtype_dict=None,
                 geometry = tweets_df['coordinates'].apply(lambda x: Point(x))
                 tweets_gdf = geopd.GeoDataFrame(
                     tweets_df, crs=crs, geometry=geometry)
+                tweets_within_cells = geopd.sjoin(tweets_gdf, cells_df,
+                                                  op='within', rsuffix='cell')
                 cells_tweets_counts = increment_counts(
-                    cells_tweets_counts, tweets_gdf, cells_df)
+                    cells_tweets_counts, tweets_within_cells, 'index_cell')
 
 
             except ValueError:
@@ -53,7 +54,8 @@ def get_counts(tweets_file_path, cells_df, dtype_dict=None,
     return cells_tweets_counts
 
 
-def get_counts_primitive(tweets_file_path, cells_df, tweet_cols, data_proj='epsg:4326'):
+def get_counts_primitive(tweets_file_path, cells_df, tweet_cols,
+                         data_proj='epsg:4326'):
     '''
     Has the same purpose as 'get_counts', except it reads the file line by line
     using the json package
@@ -69,32 +71,21 @@ def get_counts_primitive(tweets_file_path, cells_df, tweet_cols, data_proj='epsg
             try:
                 tweet_dict = json.loads(line, strict=False)
                 tweets_list.append(tweet_dict.values())
-                ## OR:
-#                 b = line.split('":')
-#                 tweet_id = int(b[1].split(',')[0])
-#                 uid = int(b[2].split(',')[0])
-#                 created_at = b[3].split('"')[1]
-#                 start_list = b[4][2:].split(',')
-#                 x = float(start_list[0])
-#                 y = float(start_list[1][1:-4])
-# #                 coords = [x, y]
-#                 tweets_list.append([tweet_id, uid, created_at, x, y])
 
                 if i%1e3 == 0:
                     tweets_df = pd.DataFrame(tweets_list, columns=tweet_cols)
-#                     x = tweets_df['x'].values
-#                     y = tweets_df['y'].values
                     x = tweets_df['coordinates'].apply(lambda x: x[0]).values
                     y = tweets_df['coordinates'].apply(lambda x: x[1]).values
-                    geometry = pd.Series(map(Point, zip(x, y)))
-#                     geometry = tweets_df['coordinates'].apply(lambda x: Point(x))
+                    geometry = pd.Series(map(Point, zip(x,y)))
                     tweets_gdf = geopd.GeoDataFrame(
                         tweets_df, crs=crs, geometry=geometry)
+                    tweets_within_cells = geopd.sjoin(
+                        tweets_gdf, cells_df, op='within', rsuffix='cell')
                     cells_tweets_counts = increment_counts(
-                        cells_tweets_counts, tweets_gdf, cells_df)
+                        cells_tweets_counts, tweets_within_cells, 'index_cell')
                     tweets_list = []
 
             except json.decoder.JSONDecodeError:
                 nr_errors += 1
-    print('{} tweets were skipped because of decoding errors.'.format(nr_errors))
+    print('{} tweets were skipped because of decoding errors'.format(nr_errors))
     return cells_tweets_counts

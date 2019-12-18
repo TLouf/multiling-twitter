@@ -38,6 +38,8 @@ def get_cities_geometry(datafile_path, shapefile_path, filters, init_cols,
         geo_df[data_id_col] = geo_df[data_id_col].astype(id_type)
     except ValueError:
         print("The IDs can't match because of their types, please check the data")
-    final_area_df = geo_df.merge(data_df, on=data_id_col, how='inner')
+    geo_df = geo_df.set_index(data_id_col)
+    data_df = data_df.set_index(data_id_col)
+    final_area_df = geo_df.join(data_df, how='inner')
     final_area_df.crs = {'init': init_proj}
     return final_area_df
