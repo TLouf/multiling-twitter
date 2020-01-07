@@ -29,7 +29,7 @@ def consec_months(agg_tweeted_months_users, nr_consec_months=3, uid_col='uid'):
     users have tweeted, obtained by scanning through the whole dataset and
     applying 'get_months_activity' to it (preferably in chunks), returns a
     Series of all the IDs of users considered to be locals. Is considered local
-    a user who has tweeted wihin at least three consecutive months.
+    a user who has tweeted within at least three consecutive months.
     '''
     # We count the number of months in which a user has tweeted in total
     count_months_tweeted = (agg_tweeted_months_users.groupby(uid_col)['month']

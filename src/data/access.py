@@ -2,6 +2,7 @@ import os
 import paramiko
 import pandas as pd
 import gzip
+import numpy as np
 
 '''
 This module is aimed at reading JSON data files, either locally or from a remote
@@ -135,3 +136,46 @@ def chunkify(file_path, size=5e8, ssh_domain=None, ssh_username=None):
             # file.
             if chunk_end - chunk_start < size:
                 break
+
+# Might be better on larger files, but it's not on CH (compressed 2.4GB)
+def test_chunkify(file_path, size=5e8, uncompressed_size=None, ssh_domain=None,
+                  ssh_username=None):
+    '''
+    Generator going through a json file located in 'file_path', and yielding the
+    chunk start and size of (approximate byte) size 'size'. Since we want to
+    read lines of data, the function ensures that the end of the chunk
+    'chunk_end' is at the end of a line.
+    '''
+    for f in yield_gzip(file_path, ssh_domain=ssh_domain,
+                        ssh_username=ssh_username):
+        if not uncompressed_size:
+            uncompressed_size = f.seek(0, 2)
+        for chunk_start in np.arange(0, uncompressed_size, size):
+            yield chunk_start, size
+
+
+def test_read_json_wrapper(file_path, chunk_start, chunk_size, ssh_domain=None,
+                      ssh_username=None):
+    '''
+    Reads a DataFrame from the json file in 'file_path', starting at the byte
+    'chunk_start' and reading 'chunk_size' bytes.
+    '''
+    for f in yield_gzip(file_path, ssh_domain=ssh_domain,
+                        ssh_username=ssh_username):
+        f.seek(int(chunk_start))
+        # readlines reads at least chunk_size, so if we seek chunk_size forward,
+        # to get to the next line we need to readline where we are to finish the
+        # current line, and then we can readlines(chunk_size), and we'll be
+        # starting at the next tweet.
+        if chunk_start > 0:
+            f.readline()
+        # Problem: the generator passing us chunk_start doesn't see that we
+        # actually started at a higher byte than chunk_start, so if there are
+        # many chunks we might get duplicate lines.
+        lines_list = f.readlines(int(chunk_size))
+        lines = b''.join(lines_list)
+        raw_tweets_df = pd.read_json(lines, lines=True)
+        nr_tweets = len(raw_tweets_df)
+        print('{:.4g}MB read, {} tweets unpacked.'.format(chunk_size*10**-6,
+                                                          nr_tweets))
+        return raw_tweets_df

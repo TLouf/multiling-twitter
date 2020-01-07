@@ -8,12 +8,12 @@ def increment_counts(total_counts, tweets_within_cells, cell_col):
     Increments the counts of tweets sent from each cell in 'total_counts'
     with the ones in 'tweets_within_cells'.
     '''
-    new_counts = tweets_within_cells.groupby([cell_col]).size()
+    new_counts = tweets_within_cells.groupby(cell_col).size()
     new_counts = pd.DataFrame(new_counts.rename('count_new'), dtype='int64')
     two_counts_df = new_counts.join(total_counts, how='outer')
-    two_counts_df.fillna(value=0, inplace=True)
+    two_counts_df = two_counts_df.fillna(value=0)
     total_counts = two_counts_df['count'] + two_counts_df['count_new']
-    total_counts.rename('count', inplace=True)
+    total_counts = total_counts.rename('count').astype('int')
     return total_counts
 
 
