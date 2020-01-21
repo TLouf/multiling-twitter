@@ -25,9 +25,8 @@ def create_grid(shape_df, cell_size, latlon_proj, xy_proj, intersect=False):
     Creates a square grid over a given shape.
     shape (GeoDataFrame): single line GeoDataFrame containing the shape on which
     the grid is to be created, in lat,lon coordinates.
-    cell_size (int): size of the sides of the square cells which constitute the grid
-    latlon_proj (str):
-    xy_proj (str):
+    cell_size (int): size of the sides of the square cells which constitute the
+    grid
     intersect (bool): determines whether the function computes
     'cells_in_shape_df', the intersection of the created grid with the shape of
     the object, so that the grid only covers the shape.
@@ -38,13 +37,22 @@ def create_grid(shape_df, cell_size, latlon_proj, xy_proj, intersect=False):
     # line and get the bounds' in the format (lon_min, lat_min, lon_max,
     # lat_max)
     lon_min, lat_min, lon_max, lat_max = shape_df['geometry'].bounds.values[0]
-    crs = {'init': latlon_proj}
     # We create a transformer to project from lon,lat coordinates to x,y.
     # always_xy set to True ensures that we always work with coordinates in the
     # same order: (lon, lat) and (x ,y).
     transformer = Transformer.from_crs(latlon_proj, xy_proj, always_xy=True)
-    x_min, y_min = transformer.transform(lon_min, lat_min)
-    x_max, y_max = transformer.transform(lon_max, lat_max)
+    # Because of curvature, the projection of the point at (lon_min, lat_min)
+    # will have a different x coordinate than the point at (lon_min, lat_max),
+    # even though those two have the same longitude. Thus, to cover the whole
+    # area, the mnimum x we need is the minimum x between these two projections.
+    # The same goes for x_max, y_min and y_max.
+    x_extrem_list, y_extrem_list = transformer.transform(
+        [lon_min, lon_max, lon_min, lon_max],
+        [lat_min, lat_min, lat_max, lat_max])
+    x_min = min(x_extrem_list)
+    x_max = max(x_extrem_list)
+    y_min = min(y_extrem_list)
+    y_max = max(y_extrem_list)
     # We want to cover at least the whole shape of the area, because if we want
     # to restrict just to the shape we can then intersect the grid with its
     # shape. Hence the x,ymax+cell_size in the arange.
@@ -59,7 +67,8 @@ def create_grid(shape_df, cell_size, latlon_proj, xy_proj, intersect=False):
     # So then (x_grid_re[i], y_grid_re[i]) for all i are all the edges in the
     # grid, which are the points to transform, as requested by the transform
     # method.
-    lon_grid, lat_grid = transformer.transform(x_grid_re, y_grid_re, direction='INVERSE')
+    lon_grid, lat_grid = transformer.transform(x_grid_re, y_grid_re,
+                                               direction='INVERSE')
     cells_list = []
     for i in range(Nx-1):
         left_lon = lon_grid[i*Ny]
@@ -73,10 +82,11 @@ def create_grid(shape_df, cell_size, latlon_proj, xy_proj, intersect=False):
                 (left_lon, top_lat), (right_lon, top_lat),
                 (right_lon, bot_lat), (left_lon, bot_lat)]))
 
-    cells_df = geopd.GeoDataFrame(cells_list, crs=crs, columns=['geometry'])
+    cells_df = geopd.GeoDataFrame(cells_list, crs=latlon_proj,
+                                  columns=['geometry'])
     if intersect:
         cells_in_shape_df = geopd.overlay(
-            cells_df, shape_df, how='intersection')
+            cells_df, shape_df[['geometry']], how='intersection')
     else:
         cells_in_shape_df = None
 

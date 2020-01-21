@@ -103,8 +103,7 @@ def read_json_wrapper(file_path, chunk_start, chunk_size, ssh_domain=None,
         lines = f.read(chunk_size)
         raw_tweets_df = pd.read_json(lines, lines=True)
         nr_tweets = len(raw_tweets_df)
-        print('{:.4g}MB read, {} tweets unpacked.'.format(chunk_size*10**-6,
-                                                          nr_tweets))
+        print(f'{chunk_size*10**-6:.4g}MB read, {nr_tweets} tweets unpacked.')
         return raw_tweets_df
 
 
@@ -176,6 +175,5 @@ def test_read_json_wrapper(file_path, chunk_start, chunk_size, ssh_domain=None,
         lines = b''.join(lines_list)
         raw_tweets_df = pd.read_json(lines, lines=True)
         nr_tweets = len(raw_tweets_df)
-        print('{:.4g}MB read, {} tweets unpacked.'.format(chunk_size*10**-6,
-                                                          nr_tweets))
+        print(f'{chunk_size*10**-6:.4g}MB read, {nr_tweets} tweets unpacked.')
         return raw_tweets_df

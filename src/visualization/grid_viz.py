@@ -9,28 +9,51 @@ import plotly.offline
 import numpy as np
 
 def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
-              title=None, cbar_label=None, log_scale=False, **plot_kwargs):
+              title=None, cbar_label=None, log_scale=False, vmax=None,
+              xy_proj=None, **plot_kwargs):
     '''
     Plots the contour of a shape, and on top of it a grid whose cells are
     colored according to the value of a metric for each cell, which are the
     values in the column 'metric_col' of 'plot_df'.
     '''
     fig, ax = plt.subplots(1, figsize=(10, 6))
-    vmax = plot_df[metric_col].max()
+    if vmax is None:
+        vmax = plot_df[metric_col].max()
     if log_scale:
         vmin = 1
         norm = colors.LogNorm(vmin=vmin, vmax=vmax)
     else:
         vmin = 0
         norm = plt.Normalize(vmin=vmin, vmax=vmax)
-    # The order here is important, the area's boundaries will be drawn on top of
-    # the choropleth.
+    if xy_proj:
+        xlabel = 'position (km)'
+        ylabel = 'position (km)'
+        plot_df = plot_df.to_crs(xy_proj)
+        area_df = area_df.to_crs(xy_proj)
+        area_df_bounds = area_df.geometry.iloc[0].bounds
+        # We translate the whole geometries so that the origin (x,y) = (0,0) is
+        # located at the bottom left corner of the shape's bounding box.
+        x_off = -area_df_bounds[0]
+        y_off = -area_df_bounds[1]
+        plot_df.geometry = plot_df.translate(xoff=x_off, yoff=y_off)
+        area_df.geometry = area_df.translate(xoff=x_off, yoff=y_off)
+    else:
+        xlabel = 'longitude (°)'
+        ylabel = 'latitude (°)'
+    # The order here is important, the area's boundaries will be drawn on top
+    # of the choropleth.
     plot_df.plot(column=metric_col, ax=ax, norm=norm, **plot_kwargs)
     area_df.plot(ax=ax, color='None', edgecolor='black')
-    ax.set_title(title)
-    plt.xlabel('longitude')
-    plt.ylabel('latitude')
 
+    if xy_proj:
+        xticks_km = ax.get_xticks() / 1000
+        ax.set_xticklabels([f'{t:.0f}' for t in xticks_km])
+        yticks_km = ax.get_yticks() / 1000
+        ax.set_yticklabels([f'{t:.0f}' for t in yticks_km])
+
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    ax.set_title(title)
     if cbar_label:
         # Create colorbar as a legend
         sm = plt.cm.ScalarMappable(cmap=plot_kwargs.get('cmap'), norm=norm)
@@ -51,21 +74,24 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
     return ax
 
 
-def plot_interactive(cell_plot_df, shape_df, plot_langs_dict,
+def plot_interactive(raw_cell_plot_df, shape_df, plot_langs_dict,
                      mapbox_style='stamen-toner', mapbox_zoom=6,
                      colorscale='Plasma', plotly_renderer=None,
                      save_path=None, show=False):
     '''
     Plots an interactive Choropleth map with Plotly. The Choropleth data are in
     'cell_plot_df', for each language described in 'plot_langs_dict'.
-    Each language's data can be selected with a dropdown menu, which updates the
-    figure.
+    Each language's data can be selected with a dropdown menu, which updates
+    the figure.
     The map layer on top of which this data is shown is provided by mapbox (see
     https://plot.ly/python/mapbox-layers/#base-maps-in-layoutmapboxstyle for
     possible values of 'mapbox_style').
     Plotly proposes different renderers, described at:
     https://plot.ly/python/renderers/#the-builtin-renderers.
+    The geometry column of cell_plot_df must contain only valid geometries:
+    just one null value will prevent the choropleth from being plotted.
     '''
+    cell_plot_df = raw_cell_plot_df.copy()
     start_point = shape_df['geometry'].values[0].centroid
     layout = go.Layout(
         mapbox_style=mapbox_style, mapbox_zoom=mapbox_zoom,
@@ -73,11 +99,12 @@ def plot_interactive(cell_plot_df, shape_df, plot_langs_dict,
         margin={"r": 100, "t": 0, "l": 0, "b": 0})
 
     # Get a dictionary corresponding to the geojson (because even though the
-    # argument is called geojson, it requires a dict type, not a str)
+    # argument is called geojson, it requires a dict type, not a str). The
+    # geometry must be in lat, lon
     geo_dict = cell_plot_df.geometry.__geo_interface__
     choropleth_dict = dict(
         geojson=geo_dict,
-        locations=cell_plot_df['cell_id'],
+        locations=cell_plot_df.index.values,
         hoverinfo='skip',
         colorscale=colorscale,
         marker_opacity=0.5, marker_line_width=0)
@@ -145,8 +172,8 @@ def plot_interactive(cell_plot_df, shape_df, plot_langs_dict,
         # folder iframe_figures/, and the files are named according to the cell
         # number. Thus, many files can be created while testing out this
         # function, so to avoid this we simply use the previously saved HTML
-        # file (so use_iframe_renderer should imply save_path), which has a name
-        # we chose.
+        # file (so use_iframe_renderer should imply save_path), which has a
+        # name we chose.
         if use_iframe_renderer:
             IPython.display.display(IPython.display.IFrame(
                 src=save_path, width=900, height=600))

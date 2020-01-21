@@ -8,9 +8,8 @@ class InputError(Exception):
 
     def __init__(self, expression, options):
         self.expression = expression
-        self.message = (
-            "{} isn't a valid input, available options are {}.".format(
-                expression,options))
+        self.message = (f"{expression} isn't a valid input, available options "
+                        f"are {options}.")
 
     def __str__(self):
         return self.message

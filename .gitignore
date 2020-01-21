@@ -88,3 +88,6 @@ target/
 
 # Bash scripts
 *.sh
+
+# Remote sync
+.remote-sync.json
