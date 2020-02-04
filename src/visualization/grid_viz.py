@@ -9,8 +9,8 @@ import plotly.offline
 import numpy as np
 
 def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
-              title=None, cbar_label=None, log_scale=False, vmax=None,
-              xy_proj=None, **plot_kwargs):
+              title=None, log_scale=False, vmin=None, vmax=None, xy_proj=None,
+              cbar_label=None, null_color='None', **plot_kwargs):
     '''
     Plots the contour of a shape, and on top of it a grid whose cells are
     colored according to the value of a metric for each cell, which are the
@@ -20,11 +20,14 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
     if vmax is None:
         vmax = plot_df[metric_col].max()
     if log_scale:
-        vmin = 1
+        if vmin is None:
+            vmin = 1
         norm = colors.LogNorm(vmin=vmin, vmax=vmax)
     else:
-        vmin = 0
+        if vmin is None:
+            vmin = plot_df[metric_col].min()
         norm = plt.Normalize(vmin=vmin, vmax=vmax)
+
     if xy_proj:
         xlabel = 'position (km)'
         ylabel = 'position (km)'
@@ -41,9 +44,10 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
         xlabel = 'longitude (°)'
         ylabel = 'latitude (°)'
     # The order here is important, the area's boundaries will be drawn on top
-    # of the choropleth.
+    # of the choropleth, and the cells with null values will be in null_color
+    area_df.plot(ax=ax, color=null_color, edgecolor='none')
     plot_df.plot(column=metric_col, ax=ax, norm=norm, **plot_kwargs)
-    area_df.plot(ax=ax, color='None', edgecolor='black')
+    area_df.plot(ax=ax, color='none', edgecolor='black')
 
     if xy_proj:
         xticks_km = ax.get_xticks() / 1000
