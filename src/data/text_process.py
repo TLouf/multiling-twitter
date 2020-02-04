@@ -9,8 +9,8 @@ import pandas as pd
 import re
 import src.utils.my_exceptions as my_exceptions
 
-def lang_detect(tweets_df, text_col='text', min_nr_words=4, cld=default_cld,
-                acc_th=0.9):
+def lang_detect(tweets_df, text_col='text', min_nr_words=4, min_nr_cjk=4,
+                cld=default_cld, acc_th=0.9, langs_agg_dict={}):
     '''
     From a DataFrame of tweets, detects the language of the text contained in
     'text_col' and output the result in new columns. Before calling a langauge
@@ -58,10 +58,16 @@ def lang_detect(tweets_df, text_col='text', min_nr_words=4, cld=default_cld,
     # special characters, emojis...).
     word_any_lang_pattern = re.compile(r'\b[^\W\d_]+?\b')
     nr_words = tweets_lang_df['filtered_text'].str.count(word_any_lang_pattern)
-    long_enough = nr_words >= min_nr_words
+    # We also count the number of Chinese-Japanese-Korean (CJK) characters,
+    # because they can be a full word or syllable, and a whole sentence can be
+    # written without any space, so the word count is irrelevant.
+    cjk_chars_pattern = re.compile(r'[\u4E00-\u9FFF]')
+    nr_cjk_chars = tweets_lang_df['filtered_text'].str.count(cjk_chars_pattern)
+    long_enough = (nr_words >= min_nr_words) | (nr_cjk_chars >= min_nr_cjk)
     (tweets_lang_df.loc[long_enough, 'cld_lang'],
-        tweets_lang_df.loc[long_enough, 'proba']) = zip(
-        *tweets_lang_df.loc[long_enough, 'filtered_text'].apply(make_predict))
+     tweets_lang_df.loc[long_enough, 'proba']) = zip(
+        *tweets_lang_df.loc[long_enough, 'filtered_text'].apply(
+            lambda t: make_predict(t, langs_agg_dict=langs_agg_dict)))
     acc_mask = tweets_lang_df['proba'] < acc_th
     un_mask = tweets_lang_df['cld_lang'] == 'un'
     tweets_lang_df.loc[acc_mask | un_mask, 'cld_lang'] = None
@@ -69,7 +75,7 @@ def lang_detect(tweets_df, text_col='text', min_nr_words=4, cld=default_cld,
 
 
 
-def make_predict(text, cld=default_cld):
+def make_predict(text, cld=default_cld, langs_agg_dict={}):
     '''
     From a string of text, gets the language detection from one of the CLD
     versions, and unpacks the results in a dictionary.
@@ -84,4 +90,10 @@ def make_predict(text, cld=default_cld):
         proba = raw_predict[2][0][2] / 100
     else:
         raise my_exceptions.InputError(cld, ['cld3', 'pycld2'])
+    # The following is for if the lang is to be aggregated with a similar one.
+    # For instance, we might like to aggregate to Chinese ('zh') its traditional
+    # form ('zh-Hant').
+    agg_to_lang = langs_agg_dict.get(lang)
+    if agg_to_lang is not None:
+        lang = agg_to_lang
     return lang, proba
