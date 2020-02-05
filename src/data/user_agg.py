@@ -1,5 +1,24 @@
 import pandas as pd
 
+
+def to_count_by_area(users_counts, users_area, output_col='count'):
+    '''
+    From users counts (by uid and possibly another level in the index, like
+    a language) and the id of the area each resides in, makes the corresponding
+    counts by area of residence.
+    '''
+    groupby_cols = users_area.name
+    if type(users_counts.index) == pd.MultiIndex:
+        # `users_counts` must have 'uid' as first level and a language group
+        # as second level
+        groupby_cols = [users_counts.index.names[1], groupby_cols]
+    agg_count = (users_counts.join(users_area, how='inner')
+                             .groupby(groupby_cols)
+                             .size()
+                             .rename(output_col))
+    return agg_count
+
+
 def get_residence(raw_user_habits, place_id_col='place_id', relevant_th=0.1):
     '''
     From the counts of tweets of users by place and time (in a categorical
@@ -42,9 +61,10 @@ def get_residence(raw_user_habits, place_id_col='place_id', relevant_th=0.1):
 def get_prop(df, first_lvl_id, second_lvl_id):
     '''
     From 'df', creates a new dataframe 'prop_df' with a two-level index built
-    from the columns 'first_lvl_id' and 'second_lvl_id', and the counts in 'df'
-    grouping by these two levels, grouping only by the 'first_lvl_id', and the
-    ratio between these two.
+    from the columns 'first_lvl_id' and 'second_lvl_id'. It contains two first
+    columns with the counts in 'df' grouping by these two levels and grouping
+    only by the 'first_lvl_id'. A third column contains the ratio between these
+    two counts.
     '''
     prop_df = (df.groupby([first_lvl_id, second_lvl_id])['count']
                  .sum()
@@ -56,5 +76,5 @@ def get_prop(df, first_lvl_id, second_lvl_id):
     prop_df[first_lvl_count] = (prop_df.groupby(first_lvl_id)
                                        .transform('sum'))
     prop_df[second_lvl_id[:-2]+'prop'] = (prop_df[second_lvl_count]
-                                             / prop_df[first_lvl_count])
+                                          / prop_df[first_lvl_count])
     return prop_df
