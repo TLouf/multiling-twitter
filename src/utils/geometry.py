@@ -1,6 +1,8 @@
 import numpy as np
 from pyproj import Transformer
+from shapely.geometry import MultiPolygon
 from shapely.geometry import Polygon
+from shapely.geometry import Point
 import geopandas as geopd
 
 def haversine(lon1, lat1, lon2, lat2):
@@ -20,16 +22,20 @@ def haversine(lon1, lat1, lon2, lat2):
     return d
 
 
-def create_grid(shape_df, cell_size, latlon_proj, xy_proj, intersect=False):
+def create_grid(shape_df, cell_size, latlon_proj='epsg:4326',
+                xy_proj='epsg:3857', intersect=False):
     '''
-    Creates a square grid over a given shape.
-    shape (GeoDataFrame): single line GeoDataFrame containing the shape on which
-    the grid is to be created, in lat,lon coordinates.
-    cell_size (int): size of the sides of the square cells which constitute the
-    grid
-    intersect (bool): determines whether the function computes
-    'cells_in_shape_df', the intersection of the created grid with the shape of
-    the object, so that the grid only covers the shape.
+    Creates a square grid over a given shape. It is highly preferable to return
+    the grid back in (lon, lat) coordinates, because the tweets' coordinates
+    are in this coordinate system, and it would much more costly to project all
+    these tweets' coordinates to the (x,y) system.
+    `shape_df` (GeoDataFrame): single line GeoDataFrame containing the shape on
+    which the grid is to be created, in lat,lon coordinates.
+    `cell_size` (int): size of the sides of the square cells which constitute
+    the grid, in meters.
+    `intersect` (bool): determines whether the function computes
+    `cells_in_shape_df`, the intersection of the created grid with the shape of
+    the area of interest, so that the grid only covers the shape.
     '''
     # We have a one line dataframe, we'll take only the geoseries with the
     # geometry, create a new dataframe out of it with the bounds of this series.
@@ -77,17 +83,108 @@ def create_grid(shape_df, cell_size, latlon_proj, xy_proj, intersect=False):
             bot_lat = lat_grid[j]
             top_lat = lat_grid[j+1]
             # The Polygon closes itself, so no need to repeat the first point at
-            # the end
+            # the end.
             cells_list.append(Polygon([
                 (left_lon, top_lat), (right_lon, top_lat),
                 (right_lon, bot_lat), (left_lon, bot_lat)]))
 
     cells_df = geopd.GeoDataFrame(cells_list, crs=latlon_proj,
                                   columns=['geometry'])
+    cells_df['cell_id'] = cells_df.index
     if intersect:
         cells_in_shape_df = geopd.overlay(
             cells_df, shape_df[['geometry']], how='intersection')
+        cells_in_shape_df.index = cells_in_shape_df['cell_id']
     else:
         cells_in_shape_df = None
 
-    return cells_df, cells_in_shape_df
+    return cells_df, cells_in_shape_df, Nx, Ny
+
+
+def extract_shape(shape_df, shapefile_name_col, shapefile_name_val,
+                  min_area=None, simplify_tol=None, latlon_proj='epsg:4326'):
+    '''
+    Extracts the shape of the area of interest, which should be located on the
+    row where the string in the `shapefile_name_col` of `shape_df` starts with
+    `shapefile_name_val`. Then the shape we extract is simplified to accelerate
+    later computations, first by removing irrelevant polygons inside the shape
+    (if it's comprised of more than one), and then simplifying the contours.
+    '''
+    shape_df = shape_df.loc[
+        shape_df[shapefile_name_col].str.startswith(shapefile_name_val)]
+    shape_df = shape_df.to_crs(latlon_proj)
+    shapely_geo = shape_df.geometry.iloc[0]
+
+    if min_area is None or simplify_tol is None:
+        area_bounds = shapely_geo.bounds
+        # Get an upper limit of the distance that can be travelled inside the
+        # area
+        max_distance = np.sqrt((area_bounds[0]-area_bounds[2])**2
+                               + (area_bounds[1]-area_bounds[3])**2)
+        if simplify_tol is None:
+            simplify_tol = max_distance / 1000
+
+    if type(shapely_geo) == MultiPolygon:
+        if min_area is None:
+            min_area = max_distance**2 / 1000
+        # We delete the polygons in the multipolygon which are too small and
+        # just complicate the shape needlessly. The units here are in ° (!)
+        shape_df.geometry.iloc[0] = MultiPolygon([poly for poly in shapely_geo
+                                                  if poly.area > min_area])
+    # We also simplify by a given tolerance (max distance a point can be moved),
+    # this could be a parameter in countries.json if needed
+    shape_df.geometry = shape_df.simplify(simplify_tol)
+    return shape_df
+
+
+
+def geo_from_bbox(bbox):
+    '''
+    From a bounding box dictionary `bbox`, which is of the form
+    {'coordinates': [[[x,y] at top right, [x,y] at top left, ...]]}, returns the
+    geometry and its area. If the four coordinates are actually the same, they
+    define a null-area Polygon, or rather something better defined as a Point.
+    '''
+    bbox = bbox['coordinates'][0]
+    geo = Polygon(bbox)
+    area = geo.area
+    if area == 0:
+        geo = Point(bbox[0])
+    return geo, area
+
+
+def make_places_geodf(places_df, shape_df, latlon_proj='epsg:4326',
+                      xy_proj='epsg:3857'):
+    '''
+    Constructs a GeoDataFrame with all the places in `places_df` which have
+    their centroid within `shape_df`, and calculates their area within the shape
+    in squared meters.
+    '''
+    places_df['geometry'], places_df['area'] = zip(
+        *places_df['bounding_box'].apply(geo_from_bbox))
+    places_geodf = geopd.GeoDataFrame(
+        places_df, crs=latlon_proj, geometry=places_df['geometry'])
+    places_geodf = places_geodf.set_index('id', drop=False)
+    # We then get the places centroids to check that they are within our area
+    # (useful when we're only interested in the region of a country).
+    places_centroids = geopd.GeoDataFrame(
+        geometry=places_geodf[['geometry']].centroid, crs=latlon_proj)
+    places_in_shape = geopd.sjoin(places_centroids, shape_df[['geometry']],
+                                  op='within', rsuffix='shape')
+    places_geodf = places_geodf.join(places_in_shape['index_shape'],
+                                     how='inner')
+    # Since the places' bbox can stretch outside of the whole shape, we need to
+    # take the intersection between the two. However, we only use the overlay to
+    # calculate the area, so that places_to_cells distributes the whole
+    # population of a place to the different cells within it. However we don't
+    # need the actual geometry from the intersection, which is more complex and
+    # thus slows down computations later on.
+    poly_mask = places_geodf['area'] > 0
+    polygons_in_shape = geopd.overlay(
+        shape_df[['geometry']], places_geodf.loc[poly_mask], how='intersection')
+    polygons_in_shape = polygons_in_shape.set_index('id')
+    places_geodf.loc[poly_mask, 'area'] = polygons_in_shape.to_crs(xy_proj).area
+    places_geodf = places_geodf.drop(
+        columns=['bounding_box', 'id','index_shape'])
+    places_in_xy = places_geodf.geometry.to_crs(xy_proj)
+    return places_geodf, places_in_xy
