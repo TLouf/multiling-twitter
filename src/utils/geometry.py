@@ -98,7 +98,7 @@ def create_grid(shape_df, cell_size, latlon_proj='epsg:4326',
     else:
         cells_in_shape_df = None
 
-    return cells_df, cells_in_shape_df, Nx, Ny
+    return cells_df, cells_in_shape_df, Nx-1, Ny-1
 
 
 def extract_shape(shape_df, shapefile_name_col, shapefile_name_val,

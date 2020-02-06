@@ -61,6 +61,9 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
     if cbar_label:
         # Create colorbar as a legend
         sm = plt.cm.ScalarMappable(cmap=plot_kwargs.get('cmap'), norm=norm)
+        # Bad values, such as a null or negative value for a log scale, are
+        # shown in the color set below:
+        sm.cmap.set_bad('grey')
         # empty array for the data range
         sm._A = []
         # add the colorbar to the figure
@@ -78,14 +81,14 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
     return ax
 
 
-def plot_interactive(raw_cell_plot_df, shape_df, plot_langs_dict,
+def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
                      mapbox_style='stamen-toner', mapbox_zoom=6,
                      colorscale='Plasma', plotly_renderer=None,
                      save_path=None, show=False):
     '''
     Plots an interactive Choropleth map with Plotly. The Choropleth data are in
-    'cell_plot_df', for each language described in 'plot_langs_dict'.
-    Each language's data can be selected with a dropdown menu, which updates
+    'cell_plot_df', for each group described in 'grps_dict'.
+    Each group's data can be selected with a dropdown menu, which updates
     the figure.
     The map layer on top of which this data is shown is provided by mapbox (see
     https://plot.ly/python/mapbox-layers/#base-maps-in-layoutmapboxstyle for
@@ -113,19 +116,15 @@ def plot_interactive(raw_cell_plot_df, shape_df, plot_langs_dict,
         colorscale=colorscale,
         marker_opacity=0.5, marker_line_width=0)
 
-    log_count = cell_plot_df['total_count'].copy()
-    log_count.loc[log_count < 1] = None
-    log_count = np.log10(log_count)
-    log_ticks = np.arange(0, log_count.max()+1)
-    log_ticks_text = ['10<sup>{:n}</sup>'.format(tick) for tick in log_ticks]
-    total_count_colorbar = {'title':'Total count', 'titleside':'right',
-                            'tickvals': log_ticks, 'ticktext': log_ticks_text}
+    log_counts, count_colorbar = config_log_plot(cell_plot_df['total_count'])
+    count_colorbar['title'] = 'Total count'
+    count_colorbar['titleside'] = 'right'
     data = [go.Choroplethmapbox(**choropleth_dict,
-                                z=log_count,
-                                colorbar=total_count_colorbar,
+                                z=log_counts,
+                                colorbar=count_colorbar,
                                 visible=True)]
 
-    nr_layers = len(plot_langs_dict) + 1
+    nr_layers = len(grps_dict) + 1
     # Each button in the dropdown menu corresponds to a state, where one
     # choropleth layer is visible and all others are hidden. The order in the
     # list in 'visible' corresponds to the order of the list data.
@@ -134,23 +133,30 @@ def plot_interactive(raw_cell_plot_df, shape_df, plot_langs_dict,
         args=[{'visible': [True] + [False]*(nr_layers-1)}],
         label='Total count')]
 
-    for i, plot_lang in enumerate(plot_langs_dict):
-        lang_dict = plot_langs_dict[plot_lang]
-        readable_lang = lang_dict['readable']
-        prop_lang_col = lang_dict['prop_col']
-        cbar_label = lang_dict['prop_label']
+    metric = metric_dict['name']
+    for i, plot_grp in enumerate(grps_dict):
+        grp_dict = grps_dict[plot_grp]
+        readable_grp = grp_dict['readable']
+        metric_grp_col = grp_dict[metric + '_col']
+        if metric_dict.get('log_scale'):
+            z, colorbar = config_log_plot(cell_plot_df[metric_grp_col])
+        else:
+            z = cell_plot_df[metric_grp_col]
+            colorbar = {}
+        colorbar['title'] = grp_dict[metric + '_label']
+        colorbar['titleside'] = 'right'
         data.append(go.Choroplethmapbox(**choropleth_dict,
-                                        z=cell_plot_df[prop_lang_col],
-                                        zmin=0, zmax=1,
-                                        colorbar={'title':cbar_label,
-                                                  'titleside':'right'},
+                                        z=z,
+                                        zmin=metric_dict['vmin'],
+                                        zmax=metric_dict['vmax'],
+                                        colorbar=colorbar,
                                         visible=False))
         visible = [False] * nr_layers
         visible[i+1] = True
         buttons.append(dict(
             method='restyle',
             args=[{'visible': visible}],
-            label=readable_lang))
+            label=readable_grp))
 
     # Add a dropdown menu to select the data:
     layout.update(
@@ -186,3 +192,19 @@ def plot_interactive(raw_cell_plot_df, shape_df, plot_langs_dict,
                      config={'modeBarButtonsToAdd': ['zoomInMapbox', 'zoomOutMapbox']})
 
     return fig
+
+
+def config_log_plot(z_series):
+    '''
+    Configures a logarithmic plot from a series `z_series` for a Plotly plot.
+    The logarithm in base 10 of the values is calculated, and the ticks'
+    positions and labels in accordance. This is for counts only now, so
+    values smaller than 1 are not supported.
+    '''
+    log_counts = z_series.copy()
+    log_counts.loc[log_counts < 1] = None
+    log_counts = np.log10(log_counts)
+    log_ticks = np.arange(0, log_counts.max()+1)
+    log_ticks_text = ['10<sup>{:n}</sup>'.format(tick) for tick in log_ticks]
+    log_colorbar_dict = {'tickvals': log_ticks, 'ticktext': log_ticks_text}
+    return log_counts, log_colorbar_dict
