@@ -1,6 +1,6 @@
 import pandas as pd
 import geopandas as geopd
-import src.data.tweets_cells_counts as tweets_counts
+import src.utils.join_and_count as join_and_count
 from shapely.geometry import Point
 '''
 Every filter returns a series with as index uids, and as values a boolean,
@@ -23,7 +23,7 @@ def inc_months_activity(tweeted_months_users_agg, tweets_df, ref_year=2015,
     month_series = tweets_df[dt_col].dt.month
     year_series = tweets_df[dt_col].dt.year - ref_year
     tweeted_months_users['month'] = year_series*12 + month_series
-    tweeted_months_users_agg = tweets_counts.increment_counts(
+    tweeted_months_users_agg = join_and_count.increment_counts(
         tweeted_months_users_agg, tweeted_months_users, [uid_col, 'month'])
     return tweeted_months_users_agg
 
@@ -121,8 +121,8 @@ def too_fast(raw_tweets_df, places_in_xy, max_distance, speed_th=280,
     # The geometry of the tweets with GPS coordinates is the Point associated to
     # them.
     tweets_df.loc[has_gps, 'geometry'] = (
-        tweets_df.loc[has_gps,'coordinates'].apply(
-            lambda x: Point(x['coordinates'])))
+        tweets_df.loc[has_gps,'coordinates']
+                 .apply(lambda x: Point(x['coordinates'])))
     tweets_df = geopd.GeoDataFrame(tweets_df, crs=point_proj)
     # We have to project these points to x,y coordinates to match the projection
     # of places.
