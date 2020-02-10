@@ -84,7 +84,7 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
 def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
                      mapbox_style='stamen-toner', mapbox_zoom=6,
                      colorscale='Plasma', plotly_renderer=None,
-                     save_path=None, show=False):
+                     save_path=None, show=False, latlon_proj='epsg:4326'):
     '''
     Plots an interactive Choropleth map with Plotly. The Choropleth data are in
     'cell_plot_df', for each group described in 'grps_dict'.
@@ -99,7 +99,7 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
     just one null value will prevent the choropleth from being plotted.
     '''
     cell_plot_df = raw_cell_plot_df.copy()
-    start_point = shape_df['geometry'].values[0].centroid
+    start_point = shape_df['geometry'].to_crs(latlon_proj).values[0].centroid
     layout = go.Layout(
         mapbox_style=mapbox_style, mapbox_zoom=mapbox_zoom,
         mapbox_center={"lat": start_point.y, "lon": start_point.x},
@@ -107,8 +107,8 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
 
     # Get a dictionary corresponding to the geojson (because even though the
     # argument is called geojson, it requires a dict type, not a str). The
-    # geometry must be in lat, lon
-    geo_dict = cell_plot_df.geometry.__geo_interface__
+    # geometry must be in lat, lon.
+    geo_dict = cell_plot_df.to_crs(latlon_proj).geometry.__geo_interface__
     choropleth_dict = dict(
         geojson=geo_dict,
         locations=cell_plot_df.index.values,

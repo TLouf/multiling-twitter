@@ -6,8 +6,8 @@ LANGS_DICT = dict([(lang[1], lang[0].lower().capitalize())
 
 def get_intersect(cells_df, places_geodf, places_counts, xy_proj='epsg:3857'):
     '''
-    Get the area of the intersection between the cells in cells_df and the places
-    in places_geodf.
+    Get the area of the intersection between the cells in cells_df and the
+    places in places_geodf.
     '''
     # We filter out places with a total_count == 0 (ie without residents) via
     # the inner join, so that we don't compute the overlay unnecessarily on
@@ -16,11 +16,7 @@ def get_intersect(cells_df, places_geodf, places_counts, xy_proj='epsg:3857'):
     places_counts_geodf['place_id'] = places_counts_geodf.index
     cells_in_places = geopd.overlay(
         places_counts_geodf, cells_df, how='intersection')
-    # The geometry of the intersection is projected before calculating the area
-    #
-    cells_in_places['area_intersect'] = (cells_in_places.geometry
-                                                        .to_crs(xy_proj)
-                                                        .area)
+    cells_in_places['area_intersect'] = cells_in_places.geometry.area
     return cells_in_places
 
 
