@@ -7,6 +7,7 @@ import IPython.display
 import plotly.graph_objects as go
 import plotly.offline
 import numpy as np
+import src.visualization.helpers as helpers_viz
 
 def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
               title=None, log_scale=False, vmin=None, vmax=None, xy_proj=None,
@@ -83,7 +84,7 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
 
 def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
                      mapbox_style='stamen-toner', mapbox_zoom=6,
-                     colorscale='Plasma', plotly_renderer=None,
+                     colorscale='Plasma', plotly_renderer='iframe_connected',
                      save_path=None, show=False, latlon_proj='epsg:4326'):
     '''
     Plots an interactive Choropleth map with Plotly. The Choropleth data are in
@@ -114,9 +115,12 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
         locations=cell_plot_df.index.values,
         hoverinfo='skip',
         colorscale=colorscale,
-        marker_opacity=0.5, marker_line_width=0)
+        marker_opacity=0.8, marker_line_width=0)
 
-    log_counts, count_colorbar = config_log_plot(cell_plot_df['total_count'])
+    total_counts = cell_plot_df['total_count'].copy()
+    total_counts.loc[total_counts < 1] = None
+    log_counts, count_colorbar = config_log_plot(
+        total_counts, 1, total_counts.max())
     count_colorbar['title'] = 'Total count'
     count_colorbar['titleside'] = 'right'
     data = [go.Choroplethmapbox(**choropleth_dict,
@@ -127,28 +131,44 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
     nr_layers = len(grps_dict) + 1
     # Each button in the dropdown menu corresponds to a state, where one
     # choropleth layer is visible and all others are hidden. The order in the
-    # list in 'visible' corresponds to the order of the list data.
+    # list in 'visible' corresponds to the order of the list `data`.
     buttons = [dict(
         method='restyle',
         args=[{'visible': [True] + [False]*(nr_layers-1)}],
         label='Total count')]
 
     metric = metric_dict['name']
+    if metric_dict.get('sym_about') is not None:
+        # If the metric requires to be plotted symmetric about a given
+        # value, then we use the diverging colorscale RdBu reversed: thus
+        # the value corresponding to `sym_about` is white, and the higher
+        # values are dark red, and the lower dark blue.
+        choropleth_dict['colorscale'] = 'RdBu'
+        choropleth_dict['reversescale'] = True
+
+    zmin, zmax = helpers_viz.get_global_vmin_vmax(
+        cell_plot_df, metric_dict, grps_dict, min_count=0)
+    og_zmin, og_zmax = zmin, zmax
+
     for i, plot_grp in enumerate(grps_dict):
         grp_dict = grps_dict[plot_grp]
         readable_grp = grp_dict['readable']
         metric_grp_col = grp_dict[metric + '_col']
         if metric_dict.get('log_scale'):
-            z, colorbar = config_log_plot(cell_plot_df[metric_grp_col])
+            z, colorbar = config_log_plot(
+                cell_plot_df[metric_grp_col], og_zmin, og_zmax)
+            zmin = np.log10(og_zmin)
+            zmax = np.log10(og_zmax)
         else:
             z = cell_plot_df[metric_grp_col]
             colorbar = {}
         colorbar['title'] = grp_dict[metric + '_label']
         colorbar['titleside'] = 'right'
+
         data.append(go.Choroplethmapbox(**choropleth_dict,
                                         z=z,
-                                        zmin=metric_dict['vmin'],
-                                        zmax=metric_dict['vmax'],
+                                        zmin=zmin,
+                                        zmax=zmax,
                                         colorbar=colorbar,
                                         visible=False))
         visible = [False] * nr_layers
@@ -194,7 +214,7 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
     return fig
 
 
-def config_log_plot(z_series):
+def config_log_plot(z_series, vmin, vmax):
     '''
     Configures a logarithmic plot from a series `z_series` for a Plotly plot.
     The logarithm in base 10 of the values is calculated, and the ticks'
@@ -202,9 +222,11 @@ def config_log_plot(z_series):
     values smaller than 1 are not supported.
     '''
     log_counts = z_series.copy()
-    log_counts.loc[log_counts < 1] = None
+    log_counts.loc[log_counts <= 0] = None
     log_counts = np.log10(log_counts)
-    log_ticks = np.arange(0, log_counts.max()+1)
+    vmin_log = int(np.log10(vmin))
+    vmax_log = int(np.log10(vmax))
+    log_ticks = np.arange(vmin_log, vmax_log+1)
     log_ticks_text = ['10<sup>{:n}</sup>'.format(tick) for tick in log_ticks]
     log_colorbar_dict = {'tickvals': log_ticks, 'ticktext': log_ticks_text}
     return log_counts, log_colorbar_dict
