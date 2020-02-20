@@ -7,7 +7,7 @@ import IPython.display
 import plotly.graph_objects as go
 import plotly.offline
 import numpy as np
-import src.visualization.helpers as helpers_viz
+import src.utils.scales as scales
 
 def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
               title=None, log_scale=False, vmin=None, vmax=None, xy_proj=None,
@@ -146,7 +146,7 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
         choropleth_dict['colorscale'] = 'RdBu'
         choropleth_dict['reversescale'] = True
 
-    zmin, zmax = helpers_viz.get_global_vmin_vmax(
+    zmin, zmax = scales.get_global_vmin_vmax(
         cell_plot_df, metric_dict, grps_dict, min_count=0)
     og_zmin, og_zmax = zmin, zmax
 
