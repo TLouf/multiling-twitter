@@ -7,9 +7,63 @@ import numpy as np
 '''
 This module is aimed at reading JSON data files, either locally or from a remote
 host. The data files are not exactly JSON, they're files in which each line is a
-JSON object, thus making up a row of data, and each key of the JSON strings
-referring to a column.
+JSON object, thus making up a row of data, and in which each key of the JSON
+strings refers to a column.
 '''
+
+def yield_tweets_access(tweets_files_paths, tweets_res=None):
+    '''
+    Yields what we call an access to a tweets' DataFrame, which can either be
+    the DataFrame directly if a list `tweets_res` of them is supplied, or the
+    arguments of `read_json_wrapper`. The functions applied in a loop started
+    from this generator then must have as an argument a "get_df" function to
+    finally get a DataFrame (see more detail in comments below).
+    Unfortunately we can't make this "get_df" function part of the yield here,
+    as the function needs to be pickable (so declared globally) for later use in
+    a multiprocessing context.
+    '''
+    if tweets_res is None:
+        # Here get_df = lambda x: read_json_wrapper(*x).
+        for file_path in tweets_files_paths:
+            for chunk_start, chunk_size in chunkify(file_path, size=1e9):
+                yield (file_path, chunk_start, chunk_size)
+    else:
+        # In this case get_df = lambda x: x is to be used
+        for df in tweets_res:
+            yield tweets_df
+
+
+def filter_df(raw_tweets_df, cols=None, dfs_to_join=[]):
+    '''
+    Filters `raw_tweets_df` via inner joins with a list of dataframes
+    `dfs_to_join`, each of which must have their index corresponding to a column
+    of `raw_tweets_df`. Can also choose to keep only some columns, with the list
+    `cols`.
+    '''
+    filtered_tweets_df = raw_tweets_df.copy()
+    if cols is None:
+        cols = filtered_tweets_df.columns.values
+    for df in dfs_to_join:
+        filtered_tweets_df = filtered_tweets_df.join(df, on=df.index.name,
+                                                     how='inner')
+    print(f'{filtered_tweets_df.shape[0]} tweets remaining after filters.')
+    filtered_tweets_df = filtered_tweets_df.loc[:, cols]
+    return filtered_tweets_df
+
+
+def read_data(tweets_file_path, chunk_start, chunk_size, dfs_to_join=[],
+              cols=None, ssh_domain=None, ssh_username=None):
+    '''
+    Reads the JSON file at `tweets_file_path` starting at the byte `chunk_start`
+    and reading `chunk_size` bytes, and dumps it into a DataFrame. Then the
+    tweets DataFrame is filtered via inner joins with a list of dataframes
+    `dfs_to_join`.
+    '''
+    raw_tweets_df = read_json_wrapper(
+        tweets_file_path, chunk_start, chunk_size, ssh_domain=ssh_domain,
+        ssh_username=ssh_username)
+    return filter_df(raw_tweets_df, cols=cols, dfs_to_join=dfs_to_join)
+
 
 def yield_sftp(file_path, ssh_domain, ssh_username):
     '''

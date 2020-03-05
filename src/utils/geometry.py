@@ -112,7 +112,6 @@ def extract_shape(shape_df, shapefile_name_col, shapefile_name_val,
     return shape_df
 
 
-
 def geo_from_bbox(bbox):
     '''
     From a bounding box dictionary `bbox`, which is of the form
@@ -166,5 +165,6 @@ def make_places_geodf(raw_places_df, shape_df, latlon_proj='epsg:4326',
     places_geodf.loc[poly_mask, 'area'] = polygons_in_shape.area
     places_geodf = places_geodf.drop(
         columns=['bounding_box', 'id','index_shape'])
+    places_geodf.index.name = 'place_id'
     places_in_xy = places_geodf.geometry.to_crs(xy_proj)
     return places_geodf, places_in_xy

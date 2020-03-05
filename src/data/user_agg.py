@@ -1,4 +1,67 @@
 import pandas as pd
+import src.data.access as data_access
+import src.data.process as data_process
+
+def users_months(tweets_file_path, chunk_start, chunk_size, places_geodf,
+                 cols=None, ref_year=2015):
+    '''
+    Reads a chunk of a JSON tweets file, and counts the number of tweets
+    each user posted each month.
+    '''
+    raw_tweets_df = data_access.read_data(
+        tweets_file_path, chunk_start, chunk_size, dfs_to_join=[places_geodf],
+        cols=cols)
+    # We get an integer representing the month number relative to the first
+    # month of `ref_year`.
+    month_series = raw_tweets_df['created_at'].dt.month
+    year_series = raw_tweets_df['created_at'].dt.year - ref_year
+    raw_tweets_df['month'] = year_series*12 + month_series
+    months_counts = (raw_tweets_df
+                        .assign(**{'count': 0})
+                        .groupby(['uid', 'month'])['count']
+                        .count())
+    nr_users = len(raw_tweets_df['uid'].unique())
+    print(f'There are {nr_users} distinct users in this chunk.')
+    return months_counts
+
+
+def get_lang_resid(df_access, get_df_fun, valid_uids, places_geodf,
+                   langs_agg_dict, cells_in_area_df, max_place_area,
+                   cc_timezone, text_col='text', min_nr_words=4,
+                   cld='pycld2', latlon_proj='epsg:4326'):
+    '''
+    Given a dataframe access and `get_df_fun` (see
+    `data_access.yield_tweets_access`), returns three Series aggregated at the
+    user level, about users in `valid_uids`. The first has how many tweets each
+    user has posted in each language they tweeted. The second and the third
+    series contains the counts of their tweets in the places defined in
+    `places_geodf` and in the cells defined in `cells_in_area_df`, divided
+    between those posted within and outside work hours (see
+    `data_process.prep_resid_attr` about the definition of work hours).
+    '''
+    tweets_lang_df = data_process.process(
+        df_access, get_df_fun, valid_uids, places_geodf, langs_agg_dict,
+        min_nr_words=min_nr_words, cld=cld)
+
+    groupby_cols = ['uid', 'cld_lang']
+    user_langs_counts = (tweets_lang_df
+                            .assign(**{'count': 0})
+                            .groupby(groupby_cols)['count'].count())
+
+    tweets_cells_df, tweets_places_df = data_process.prep_resid_attr(
+        tweets_lang_df, cells_in_area_df, max_place_area, cc_timezone)
+
+    groupby_cols = ['uid', 'cell_id', 'isin_workhour']
+    user_cells_habits = (tweets_cells_df
+                            .assign(**{'count': 0})
+                            .groupby(groupby_cols)['count'].count())
+
+    groupby_cols = ['uid', 'place_id', 'isin_workhour']
+    user_places_habits = (tweets_places_df
+                            .assign(**{'count': 0})
+                            .groupby(groupby_cols)['count'].count())
+
+    return user_langs_counts, user_cells_habits, user_places_habits
 
 
 def to_count_by_area(users_counts, users_area, output_col='count'):

@@ -3,6 +3,18 @@ import geopandas as geopd
 import json
 from shapely.geometry import Point
 
+def init_counts(groupby_cols, count_col='count'):
+    '''
+    Initializes an empty DataFrame with a MultiIndex with each index named after
+    one in the list `groupby_cols`, and a single column `count_col`.
+    '''
+    init_values = [[] for x in range(len(groupby_cols))]
+    init_index = pd.MultiIndex(levels=init_values, codes=init_values,
+                               names=groupby_cols)
+    total_counts = pd.DataFrame([], index=init_index, columns=[count_col])
+    return total_counts
+
+
 def increment_counts(total_counts, data_to_count, groupby_cols,
                      count_col='count'):
     '''
@@ -10,10 +22,7 @@ def increment_counts(total_counts, data_to_count, groupby_cols,
     in 'data_to_count'.
     '''
     if total_counts is None:
-        init_values = [[] for x in range(len(groupby_cols))]
-        init_index = pd.MultiIndex(levels=init_values, codes=init_values,
-                                   names=groupby_cols)
-        total_counts = pd.DataFrame([], index=init_index, columns=[count_col])
+        total_counts = init_counts(groupby_cols, count_col=count_col)
     new_counts = (data_to_count.assign(**{count_col: 0})
                                .groupby(groupby_cols)[count_col].count())
     total_counts = increment_join(total_counts, new_counts, count_col=count_col)

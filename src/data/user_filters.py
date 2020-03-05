@@ -64,7 +64,9 @@ def consec_months(tweeted_months_users_agg, nr_consec_months=3, uid_col='uid'):
     print(f'There are {nr_users} users considered local in the dataset, as they'
           f' have been active for {nr_consec_months} consecutive months in this'
           ' area at least once.')
-    return pd.Series(True, index=local_uids, name='local')
+    local_uids = pd.Series(True, index=local_uids, name='local')
+    local_uids.index.name = 'uid'
+    return local_uids
 
 
 def bot_activity(tweeted_months_users_agg, max_tweets_per_min=3):
@@ -88,6 +90,7 @@ def bot_activity(tweeted_months_users_agg, max_tweets_per_min=3):
                     < max_tweets_per_min)
     # We only keep in the index the UIDs to exclude.
     bot_uids = not_bot_mask.rename('bot').loc[~not_bot_mask]
+    bot_uids.index.name = 'uid'
     print(f'{len(bot_uids)} users have been found to be bots because of their '
           f'excessive activity, tweeting more than {max_tweets_per_min} times '
           'per minute.')
@@ -108,11 +111,6 @@ def too_fast(raw_tweets_df, places_in_xy, max_distance, speed_th=280,
     can be very far apart, and the user actually probably hasn't moved much.
     Every physical variable is in SI units: distance in meters and time in
     seconds.
-    Other solution: use bbox values of lat, lon:
-    (lat_max, lat_min, lon_max, lon_min), and simply do
-    min(delta(xmax), delta(xmax xmin) ...). Problem: places which are within
-    another must get distance = 0, so do also if x_min_within > x_min and
-    xmax_within < xmax and y..., then distance =0 ?
     '''
     tweets_df = raw_tweets_df.copy()
     has_gps = tweets_df['coordinates'].notnull()
@@ -158,6 +156,7 @@ def too_fast(raw_tweets_df, places_in_xy, max_distance, speed_th=280,
     tweets_df = tweets_df.loc[tweets_df['speed'] > speed_th]
     too_fast_uids = pd.Series(
         False, index=tweets_df['uid'].unique(), name='too_fast')
+    too_fast_uids.index.name = 'uid'
     print(f'{len(too_fast_uids)} users have been found in this chunk with a '
           f'speed exceeding {speed_th*3.6:n} km/h.')
     return too_fast_uids
