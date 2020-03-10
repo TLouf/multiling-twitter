@@ -85,7 +85,8 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
 def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
                      mapbox_style='stamen-toner', mapbox_zoom=6,
                      colorscale='Plasma', plotly_renderer='iframe_connected',
-                     save_path=None, show=False, latlon_proj='epsg:4326'):
+                     save_path=None, show=False, latlon_proj='epsg:4326',
+                     alpha=0.8):
     '''
     Plots an interactive Choropleth map with Plotly. The Choropleth data are in
     'cell_plot_df', for each group described in 'grps_dict'.
@@ -115,7 +116,7 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
         locations=cell_plot_df.index.values,
         hoverinfo='skip',
         colorscale=colorscale,
-        marker_opacity=0.8, marker_line_width=0)
+        marker_opacity=alpha, marker_line_width=0)
 
     total_counts = cell_plot_df['total_count'].copy()
     total_counts.loc[total_counts < 1] = None
