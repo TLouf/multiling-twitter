@@ -1,6 +1,93 @@
+import os
 import matplotlib.pyplot as plt
 import src.utils.scales as scales
 import src.visualization.grid_viz as grid_viz
+
+
+def top_lang_speakers(user_langs_agg, area_dict, lang_relevant_count,
+                      lang_relevant_prop, fig_dir=None, show=False):
+    '''
+    Produces bar plots of the top ten languages in the area in terms of number
+    of users and proportion. The data comes from a user-aggregate level, in
+    `user_langs_agg`, which lists all users and the languages each speaks.
+    '''
+    country_name = area_dict['readable']
+    cc = area_dict['cc']
+    # Get the number of users speaking every language, and sort the languages
+    # starting with the most spoken.
+    area_langs_counts = (user_langs_agg.groupby('cld_lang')
+                                       .size()
+                                       .rename('count')
+                                       .sort_values(ascending=False))
+    total_count = len(user_langs_agg.index.levels[0])
+    # Then take the top ten languages.
+    top_langs = area_langs_counts.index.values[:10]
+    top_counts = area_langs_counts.values[:10]
+
+    plt.bar(top_langs, top_counts)
+    plt.title(f'Ten languages with the most speakers in {country_name}')
+    plt.ylabel('number of speakers')
+    if fig_dir:
+        file_name = (
+            f'top_langs_speakers_count_cc={cc}_count_th={lang_relevant_count}_'
+            f'prop_th={lang_relevant_prop}.pdf')
+        save_path = os.path.join(fig_dir, cc, file_name)
+        plt.savefig(save_path)
+    if show:
+        plt.show()
+    plt.clf()
+
+    plt.bar(top_langs, top_counts/total_count)
+    plt.title(f'Ten languages with the most speakers in {country_name}')
+    plt.ylabel('proportion of the users speaking')
+    if fig_dir:
+        file_name = (
+            f'top_langs_speakers_prop_cc={cc}_count_th={lang_relevant_count}_'
+            f'prop_th={lang_relevant_prop}.pdf')
+        save_path = os.path.join(fig_dir, cc, file_name)
+        plt.savefig(save_path)
+    if show:
+        plt.show()
+    plt.clf()
+
+
+def ling_grps(multiling_grps, ling_counts, total_count, area_dict,
+              lang_relevant_count, lang_relevant_prop,
+              fig_dir=None, show=False):
+    '''
+    Produces bar plots of the top ten linguals groups in the area in terms of
+    number of users and proportion. The data comes directly from `ling_counts`,
+    which has the counts for every group in `multiling_grps`.
+    '''
+    country_name = area_dict['readable']
+    cc = area_dict['cc']
+    x_plot = [grp[5:] for grp in multiling_grps]
+    plt.bar(x_plot, ling_counts)
+    plt.title(f'Local languages groups in {country_name}')
+    plt.ylabel('number in the group')
+    if fig_dir:
+        file_name = (
+            f'multilinguals_count_cc={cc}_count_th={lang_relevant_count}_'
+            f'prop_th={lang_relevant_prop}.pdf')
+        save_path = os.path.join(fig_dir, cc, file_name)
+        plt.savefig(save_path)
+    if show:
+        plt.show()
+    plt.clf()
+
+    plt.bar(x_plot, ling_counts/total_count)
+    plt.title(f'Local languages groups in {country_name}')
+    plt.ylabel('proportion out of the total population')
+    if fig_dir:
+        file_name = (
+            f'multilinguals_prop_cc={cc}_count_th={lang_relevant_count}_'
+            f'prop_th={lang_relevant_prop}.pdf')
+        save_path = os.path.join(fig_dir, cc, file_name)
+        plt.savefig(save_path)
+    if show:
+        plt.show()
+    plt.clf()
+
 
 def cluster_analysis(all_vars, max_nr_clusters=10, show=True):
     '''
@@ -41,9 +128,7 @@ def metric_grid(cell_plot_df, metric_dict, shape_df, grps_dict, country_name,
     vmin, vmax = scales.get_global_vmin_vmax(cell_plot_df, metric_dict,
                                              grps_dict, min_count=min_count)
 
-
     for grp, grp_dict in grps_dict.items():
-        readable_lang = grp_dict['readable']
         grp_label = grp_dict['grp_label']
         plot_title = f'{readable_metric} of {grp_label} in {country_name}'
         metric_col = grp_dict[metric + '_col']
