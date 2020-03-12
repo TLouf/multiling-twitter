@@ -19,6 +19,8 @@ def area_dict(countries_study_data, cc, region=None):
         area_dict = countries_study_data[cc]['regions'][region]
     else:
         area_dict = countries_study_data[cc]
+    area_dict['cc'] = cc
+    area_dict['region'] = region
     return area_dict
 
 
@@ -34,6 +36,8 @@ def shapefile_dict(area_dict, cc, region=None,
         shapefile_name_col = 'FID'
         shapefile_name_val = cc
     shapefile_dict = {
+        'cc': cc,
+        'region': region,
         'name': shapefile_name,
         'col': shapefile_name_col,
         'val': shapefile_name_val}
@@ -46,7 +50,6 @@ def langs_dict(area_dict, level_lang_label_format):
     for plot_lang in plot_langs_list:
         readable_lang = LANGS_DICT[plot_lang]
         lang_count_col = f'count_{plot_lang}'
-        lang_prop_col = f'prop_{plot_lang}'
         level_lang_label = level_lang_label_format.format(readable_lang)
         lang_count_label = f'Number of {level_lang_label} in the cell'
         lang_dict = {'count_col': lang_count_col,
@@ -59,11 +62,10 @@ def langs_dict(area_dict, level_lang_label_format):
 
 def linguals_dict(area_dict):
     plot_linguals_dict = {}
-    all_mulitling_types = {1: 'mono', 2: 'bi', 3: 'tri'}
+    all_mulitling_types = {1: 'mono', 2: 'bi', 3: 'tri', 4: 'quadri'}
     plot_langs_list = area_dict['local_langs']
     plot_langs_list.sort()
     lings_list = []
-    nr_langs = len(plot_langs_list)
     # Get all possible kinds of multilinguals in lings_list
     for L in range(1, len(plot_langs_list)+1):
         for subset in combinations(plot_langs_list, L):
@@ -71,7 +73,6 @@ def linguals_dict(area_dict):
 
     for ling in lings_list:
         ling_count_col = f'count_ling_{ling}'
-        ling_prop_col = f'prop_ling_{ling}'
         # We extract every 2-letter language code from ling
         nr_langs_in_ling = len(ling)//2
         langs_in_ling = [ling[2*k:2*(k+1)] for k in range(nr_langs_in_ling)]
@@ -88,29 +89,19 @@ def linguals_dict(area_dict):
     return plot_linguals_dict
 
 
-def whole(cc, region, cell_size, level='user'):
-    if level=='user':
-        level_label_format = '{}-speaking users'
-    else:
-        level_label_format = 'tweets in {}'
+def multi_mono_dict(plot_lings_dict):
+    plot_multi_mono_dict = {}
+    for ling, ling_dict in plot_lings_dict.items():
+        if len(ling.split('_')[1]) == 2:
+            mono_dict = {'count_col': ling_dict['count_col'],
+                         'count_label': ling_dict['count_label'],
+                         'readable': ling_dict['readable'],
+                         'grp_label': ling_dict['grp_label']}
+            plot_multi_mono_dict['mono_' + ling] = mono_dict
 
-    if region:
-        country_name = region
-    else:
-        country_name = shape_df['NAME_ENGL'].iloc[0]
-
-    area_dict = make_config.area_dict(countries_study_data, cc, region=region)
-    plot_langs_dict = make_config.plot_dict(area_dict, level_label_format)
-    shapefile_dict = make_config.shapefile_dict(area_dict, cc, region=region)
-
-
-    shapefile_path = os.path.join(
-        external_data_dir, shapefile_dict['name'], shapefile_dict['name'])
-    shape_df = geopd.read_file(shapefile_path)
-    shape_df = geo.extract_shape(shape_df, shapefile_dict['col'],
-                                 shapefile_dict['val'])
-
-    cell_data_path = cell_data_path_format.format('users', cc, cell_size)
-    cell_plot_df = geopd.read_file(cell_data_path)
-    cell_plot_df.index = cell_plot_df['cell_id']
-    return cell_plot_df, shape_df, shapefile_dict, plot_langs_dict, area_dict
+    multi_dict = {'count_col': 'multi_count',
+                 'count_label': 'Number of multilinguals in the cell',
+                 'readable': 'multilinguals',
+                 'grp_label': 'multilinguals'}
+    plot_multi_mono_dict['multi'] = multi_dict
+    return plot_multi_mono_dict

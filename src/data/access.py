@@ -29,7 +29,7 @@ def yield_tweets_access(tweets_files_paths, tweets_res=None):
                 yield (file_path, chunk_start, chunk_size)
     else:
         # In this case get_df = lambda x: x is to be used
-        for df in tweets_res:
+        for tweets_df in tweets_res:
             yield tweets_df
 
 
