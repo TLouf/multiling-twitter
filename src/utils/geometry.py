@@ -1,9 +1,13 @@
+import os
 import numpy as np
+import pandas as pd
 from pyproj import Transformer
 from shapely.geometry import MultiPolygon
 from shapely.geometry import Polygon
 from shapely.geometry import Point
 import geopandas as geopd
+import src.utils.make_config as make_config
+import src.data.access as data_access
 
 def haversine(lon1, lat1, lon2, lat2):
     R = 6367
@@ -72,21 +76,23 @@ def create_grid(shape_df, cell_size, xy_proj='epsg:3857', intersect=False):
         cells_in_shape_df.index = cells_in_shape_df['cell_id']
     else:
         cells_in_shape_df = None
-
+    cells_df.cell_size = cell_size
+    cells_in_shape_df.cell_size = cell_size
     return cells_df, cells_in_shape_df, Nx-1, Ny-1
 
 
-def extract_shape(shape_df, shapefile_name_col, shapefile_name_val,
+def extract_shape(shape_df, shapefile_dict,
                   min_area=None, simplify_tol=None, xy_proj='epsg:3857'):
     '''
     Extracts the shape of the area of interest, which should be located on the
-    row where the string in the `shapefile_name_col` of `shape_df` starts with
-    `shapefile_name_val`. Then the shape we extract is simplified to accelerate
-    later computations, first by removing irrelevant polygons inside the shape
-    (if it's comprised of more than one), and then simplifying the contours.
+    row where the string in the `shapefile_dict['col'],` of `shape_df` starts
+    with `shapefile_dict['val']`. Then the shape we extract is simplified to
+    accelerate later computations, first by removing irrelevant polygons inside
+    the shape (if it's comprised of more than one), and then simplifying the
+    contours.
     '''
     shape_df = shape_df.loc[
-        shape_df[shapefile_name_col].str.startswith(shapefile_name_val)]
+        shape_df[shapefile_dict['col']].str.startswith(shapefile_dict['val'])]
     shape_df = shape_df.to_crs(xy_proj)
     shapely_geo = shape_df.geometry.iloc[0]
 
@@ -109,6 +115,7 @@ def extract_shape(shape_df, shapefile_name_col, shapefile_name_val,
     # We also simplify by a given tolerance (max distance a point can be moved),
     # this could be a parameter in countries.json if needed
     shape_df.geometry = shape_df.simplify(simplify_tol)
+    shape_df.cc = shapefile_dict['cc']
     return shape_df
 
 
@@ -166,5 +173,52 @@ def make_places_geodf(raw_places_df, shape_df, latlon_proj='epsg:4326',
     places_geodf = places_geodf.drop(
         columns=['bounding_box', 'id','index_shape'])
     places_geodf.index.name = 'place_id'
+    places_geodf.cc = shape_df.cc
     places_in_xy = places_geodf.geometry.to_crs(xy_proj)
+    places_in_xy.cc = shape_df.cc
     return places_geodf, places_in_xy
+
+
+def d_matrix_from_cells(cell_plot_df):
+    n_cells = cell_plot_df.shape[0]
+    d_matrix = np.zeros((n_cells, n_cells))
+    cells_centroids = cell_plot_df.geometry.centroid.values
+    for i in range(n_cells):
+        d_matrix[i, i:] = cells_centroids[i:].distance(cells_centroids[i])
+        d_matrix[i:, i] = d_matrix[i, i:]
+    return d_matrix
+
+
+def init_cc(area_dict, cell_sizes_list, places_files_paths, 
+            project_data_dir):
+
+    cc = area_dict['cc']
+    region = area_dict['region']
+    xy_proj = area_dict['xy_proj']
+    min_poly_area = area_dict.get('min_poly_area')
+
+    shapefile_dict = make_config.shapefile_dict(area_dict, cc, region=region)
+    shapefile_path = os.path.join(project_data_dir, 
+                                  'external', 
+                                  shapefile_dict['name'], 
+                                  shapefile_dict['name'])
+    shape_df = geopd.read_file(shapefile_path)
+    shape_df = extract_shape(shape_df, shapefile_dict, xy_proj=xy_proj,
+                             min_area=min_poly_area)
+    all_raw_places_df = []
+    for file in places_files_paths:
+        raw_places_df = data_access.return_json(file)
+        all_raw_places_df.append(
+            raw_places_df[['id', 'bounding_box', 'name', 'place_type']])
+    # We drop the duplicate places (based on their ID)
+    places_df = pd.concat(all_raw_places_df).drop_duplicates(subset='id')
+    places_geodf, places_in_xy = make_places_geodf(places_df, shape_df,
+                                                       xy_proj=xy_proj)
+
+    cells_df_list = []
+    for cell_size in cell_sizes_list:
+        cells_df, cells_in_area_df, Nx, Ny = create_grid(
+            shape_df, cell_size, xy_proj=xy_proj, intersect=True)
+        cells_df_list.append(cells_in_area_df)
+        
+    return shape_df, places_geodf, cells_df_list

@@ -1,10 +1,12 @@
 import pycld2
 import geopandas as geopd
+import src.data.user_agg as uagg
+import src.utils.join_and_count as join_and_count
 
 LANGS_DICT = dict([(lang[1], lang[0].lower().capitalize())
                    for lang in pycld2.LANGUAGES])
 
-def get_intersect(cells_df, places_geodf, places_counts, xy_proj='epsg:3857'):
+def get_intersect(cells_df, places_geodf, places_counts):
     '''
     Get the area of the intersection between the cells in cells_df and the
     places in places_geodf.
@@ -21,7 +23,7 @@ def get_intersect(cells_df, places_geodf, places_counts, xy_proj='epsg:3857'):
 
 
 def get_counts(places_counts, places_langs_counts, places_geodf,
-               raw_cells_df, plot_langs_dict, xy_proj='epsg:3857'):
+               raw_cells_df, plot_langs_dict):
     '''
     From counts by places in 'places_counts' and 'places_langs_counts', returns
     the counts by cells defined in 'cells_df'. 'places_counts' is simply
@@ -35,8 +37,7 @@ def get_counts(places_counts, places_langs_counts, places_geodf,
     # place), so we duplicate cells_df.index into the 'cell_id' column, to be
     # able to make the groupby in intersect_to_cells
     cells_df['cell_id'] = cells_df.index
-    cells_in_places = get_intersect(cells_df, places_geodf, places_counts,
-                                    xy_proj=xy_proj)
+    cells_in_places = get_intersect(cells_df, places_geodf, places_counts)
     cell_plot_df = cells_df.loc[:, ['geometry']]
     cell_plot_df = intersect_to_cells(
         cells_in_places, cell_plot_df, places_counts.columns)
@@ -75,3 +76,69 @@ def intersect_to_cells(cells_in_places, cells_df, count_cols):
         cells_counts = cells_in_places.groupby('cell_id')[col].sum()
         cells_df = cells_df.join(cells_counts, how='left')
     return cells_df
+
+
+def get_all_area_counts(users_home_areas, user_langs_agg, users_ling_grp,
+                        plot_langs_dict, multiling_grps):
+    '''
+    Based on which language group the users belong to (given in `user_langs_agg`
+    and `users_ling_grp`) and in which area they reside (`users_home_areas`), 
+    gets the counts of users belonging to every group in every area.
+    '''
+    # Initialize with total counts
+    areas_counts = (users_home_areas.to_frame()
+                                    .groupby(users_home_areas.name)
+                                    .size()
+                                    .rename('total_count')
+                                    .to_frame())
+    # We count the number of users speaking a local language in each cell and
+    # place of residence.
+    local_lang_users = user_langs_agg.reset_index(level='cld_lang')
+    local_langs = [lang for lang in plot_langs_dict]
+    local_langs_mask = local_lang_users['cld_lang'].isin(local_langs)
+    local_lang_users = (local_lang_users.loc[local_langs_mask]
+                                        .groupby('uid')
+                                        .first())
+    areas_local_counts = uagg.to_count_by_area(
+        local_lang_users, users_home_areas, output_col='local_count')
+    # Then we get the counts of speakers by language and cell
+    areas_langs_counts = uagg.to_count_by_area(user_langs_agg, users_home_areas)
+    # Then the counts of groups (mono-, bi-, tri-linguals):
+    areas_ling_counts = uagg.to_count_by_area(users_ling_grp, users_home_areas)
+    # We always left join on places counts, because total_count == 0 implies
+    # that every other count is 0.
+    areas_counts = areas_counts.join(areas_local_counts, how='left')
+    for ling in multiling_grps:
+        ling_count_col= f'count_{ling}'
+        areas_grp_count = (areas_ling_counts.xs(ling, level='ling_grp')
+                                            .rename(ling_count_col))
+        areas_counts = areas_counts.join(areas_grp_count, how='left')
+
+    for plot_lang, lang_dict in plot_langs_dict.items():
+        lang_count_col = lang_dict['count_col']
+        areas_lang_counts = (areas_langs_counts.xs(plot_lang, level='cld_lang')
+                                               .rename(lang_count_col))
+        areas_counts = areas_counts.join(areas_lang_counts, how='left')
+
+    return areas_counts
+
+
+def home_places_to_cells(cell_plot_df, user_only_place, places_geodf,
+                         user_langs_agg, users_ling_grp, plot_langs_dict,
+                         multiling_grps):
+    '''
+    Appends new columns to `cell_plot_df` with the counts by cell of the
+    language groups described in `plot_langs_dict` and `multiling_grps`. The
+    counts are calculated from the user counts in `user_langs_agg` and
+    `users_ling_grp` respectively, for the users who only have a place of
+    residence, which is given in `user_only_place`. The cell counts are then
+    distributed proportionally to the area of the place which intersects the
+    cell(s).
+    '''
+    places_counts = get_all_area_counts(
+        user_only_place, user_langs_agg, users_ling_grp, plot_langs_dict,
+        multiling_grps)
+    cells_in_places = get_intersect(cell_plot_df, places_geodf, places_counts)
+    count_cols = places_counts.columns
+    cell_plot_df = intersect_to_cells(cells_in_places, cell_plot_df, count_cols)
+    return cell_plot_df

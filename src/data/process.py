@@ -103,9 +103,18 @@ def prep_resid_attr(tweets_lang_df, cells_in_area_df, max_place_area,
     flags whether a tweet was made within or outside work hours, considering
     the appropriate timezone `cc_timezone`.
     '''
-    tweets_df = tweets_lang_df.copy()
-    relevant_area_mask = tweets_df['area'] < max_place_area
-    tweets_df = tweets_df.loc[relevant_area_mask].copy()
+    relevant_area_mask = tweets_lang_df['area'] < max_place_area
+    tweets_df = tweets_lang_df.loc[relevant_area_mask].copy()
+    tweets_df = isin_workhour_det(tweets_df, cc_timezone)
+    has_gps = tweets_df['area'] == 0
+    tweets_cells_df = geopd.sjoin(tweets_df.loc[has_gps], cells_in_area_df,
+        op='within', rsuffix='cell', how='inner')
+    tweets_places_df = tweets_df.loc[~has_gps]
+    print('chunk preparation of residence attribution done')
+    return tweets_cells_df, tweets_places_df
+
+
+def isin_workhour_det(tweets_df, cc_timezone):
     tweets_df['hour'] = (tweets_df['created_at'].dt.tz_localize('UTC')
                                                 .dt.tz_convert(cc_timezone)
                                                 .dt.hour)
@@ -115,10 +124,4 @@ def prep_resid_attr(tweets_lang_df, cells_in_area_df, max_place_area,
         (tweets_df['hour'] > 7)
         & (tweets_df['hour'] < 18)
         & (tweets_df['created_at'].dt.weekday < 5))
-
-    has_gps = tweets_df['area'] == 0
-    tweets_cells_df = geopd.sjoin(tweets_df.loc[has_gps], cells_in_area_df,
-        op='within', rsuffix='cell', how='inner')
-    tweets_places_df = tweets_df.loc[~has_gps]
-    print('chunk preparation of residence attribution done')
-    return tweets_cells_df, tweets_places_df
+    return tweets_df

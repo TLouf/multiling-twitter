@@ -1,6 +1,10 @@
+import numpy as np
 import pandas as pd
 import geopandas as geopd
+import multiprocessing as mp
 import src.utils.join_and_count as join_and_count
+import src.data.access as data_access
+import src.data.user_agg as uagg
 from shapely.geometry import Point
 '''
 Every filter returns a series with as index uids, and as values a boolean,
@@ -139,9 +143,9 @@ def too_fast(raw_tweets_df, places_in_xy, max_distance, speed_th=280,
     prev_tweets_df = prev_tweets_df.loc[same_uid_mask]
     tweets_df['delta_t'] = (tweets_df['created_at']
                             - prev_tweets_df['created_at']).dt.total_seconds()
-    # delta_t can be too large because speed_th*delta_t > max distance
-    # in the country, so in order to calculate as few distances between polygons
-    # as possible, we filter out tweets_df where the delta_t is too large
+    # delta_t can be too large because speed_th*delta_t > max distance in the
+    # country, so in order to calculate as few distances between polygons as
+    # possible, we filter out tweets_df where the delta_t is too large
     short_enough = speed_th*tweets_df['delta_t'] < max_distance
     tweets_df = tweets_df.loc[short_enough]
     prev_tweets_df = prev_tweets_df.loc[short_enough]
@@ -160,3 +164,66 @@ def too_fast(raw_tweets_df, places_in_xy, max_distance, speed_th=280,
     print(f'{len(too_fast_uids)} users have been found in this chunk with a '
           f'speed exceeding {speed_th*3.6:n} km/h.')
     return too_fast_uids
+
+
+def filters_chunk_pass(df_access, get_df_fun, places_in_xy, max_distance,
+                       cols=None, ref_year=2015):
+    tweets_df = get_df_fun(df_access)
+    tweets_df = data_access.filter_df(
+        tweets_df, cols=cols, dfs_to_join=[places_in_xy])
+    months_counts = uagg.users_months(tweets_df, ref_year=ref_year)
+    too_fast_uids = too_fast(tweets_df, places_in_xy, max_distance)
+    return months_counts, too_fast_uids
+    
+    
+def get_valid_uids(places_geodf, shape_df, get_df_fun, collect_filters_pass_res,
+                   filters_pass_res, tweets_files_paths, cpus=8):
+    
+    area_bounds = shape_df.geometry.iloc[0].bounds
+    # Get an upper limit of the distance that can be travelled inside the area
+    max_distance = np.sqrt((area_bounds[0]-area_bounds[2])**2 
+                           + (area_bounds[1]-area_bounds[3])**2)
+    cols = ['uid', 'created_at', 'place_id', 'coordinates']
+    pool = mp.Pool(cpus)
+    for df_access in data_access.yield_tweets_access(tweets_files_paths):
+        args = (df_access, get_df_fun, places_geodf, max_distance)
+        kwargs = {'cols': cols}
+        pool.apply_async(
+            filters_chunk_pass, args, kwargs,
+            callback=collect_filters_pass_res, error_callback=print)
+    pool.close()
+    pool.join()
+    
+    tweeted_months_users = join_and_count.init_counts(['uid', 'month'])
+    all_too_fast_uids = pd.Series([])
+    all_too_fast_uids.index.name = 'uid'
+    for res in filters_pass_res:
+        months_counts = res[0]
+        tweeted_months_users = join_and_count.increment_join(
+            tweeted_months_users, months_counts)
+        too_fast_uids = res[1]
+        all_too_fast_uids = (all_too_fast_uids * too_fast_uids).fillna(False)
+            
+    tweeted_months_users = tweeted_months_users['count']
+    total_nr_users = len(tweeted_months_users.index.levels[0])
+    print(f'In total, there are {total_nr_users} distinct users in the whole '  
+          'dataset.')
+    
+    local_uids = consec_months(tweeted_months_users)
+    bot_uids = bot_activity(tweeted_months_users)
+    # We have local_uids: index of uids with a column full of True, and
+    # bot_uids: index of uids with a column full of False. When we multiply
+    # them, the uids in local_uids which are not in bot_uids are assigned NaN,
+    # and the ones which are in bot_uids are assigned False. When we convert to
+    # the boolean type, the NaNs turn to True.
+    valid_uids = (local_uids * bot_uids).astype('bool').rename('valid')
+    valid_uids = valid_uids.loc[valid_uids]
+    print(f'In total, there are {len(all_too_fast_uids)} too fast users '
+          'to filter out in the whole dataset.')
+    valid_uids = ((valid_uids * all_too_fast_uids).astype('bool')
+                                                  .rename('valid'))
+    valid_uids = valid_uids.loc[valid_uids]
+    print(f'This leaves us with {len(valid_uids)} valid users in the whole '   
+          'dataset.')
+    return valid_uids
+    
