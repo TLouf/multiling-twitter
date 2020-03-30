@@ -1,7 +1,6 @@
 import pycld2
 import geopandas as geopd
 import src.data.user_agg as uagg
-import src.utils.join_and_count as join_and_count
 
 LANGS_DICT = dict([(lang[1], lang[0].lower().capitalize())
                    for lang in pycld2.LANGUAGES])
@@ -108,17 +107,25 @@ def get_all_area_counts(users_home_areas, user_langs_agg, users_ling_grp,
     # We always left join on places counts, because total_count == 0 implies
     # that every other count is 0.
     areas_counts = areas_counts.join(areas_local_counts, how='left')
+    existing_lings = areas_ling_counts.index.get_level_values('ling_grp')
     for ling in multiling_grps:
-        ling_count_col= f'count_{ling}'
-        areas_grp_count = (areas_ling_counts.xs(ling, level='ling_grp')
-                                            .rename(ling_count_col))
-        areas_counts = areas_counts.join(areas_grp_count, how='left')
+        ling_count_col = f'count_{ling}'
+        if ling in existing_lings:
+            areas_grp_count = (areas_ling_counts.xs(ling, level='ling_grp')
+                                                .rename(ling_count_col))
+            areas_counts = areas_counts.join(areas_grp_count, how='left')
+        else:
+            areas_counts[ling_count_col] = None
 
-    for plot_lang, lang_dict in plot_langs_dict.items():
+    existing_langs = areas_langs_counts.index.get_level_values('cld_lang')
+    for lang, lang_dict in plot_langs_dict.items():
         lang_count_col = lang_dict['count_col']
-        areas_lang_counts = (areas_langs_counts.xs(plot_lang, level='cld_lang')
-                                               .rename(lang_count_col))
-        areas_counts = areas_counts.join(areas_lang_counts, how='left')
+        if lang in existing_langs:
+            areas_lang_counts = (areas_langs_counts.xs(lang, level='cld_lang')
+                                                   .rename(lang_count_col))
+            areas_counts = areas_counts.join(areas_lang_counts, how='left')
+        else:
+            areas_counts[lang_count_col] = None
 
     return areas_counts
 
