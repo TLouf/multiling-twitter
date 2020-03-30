@@ -37,6 +37,11 @@ First tests on the multilingualism project on previously acquired data.
 
 (x) means they're excluded from version control.
 
+`src` module inter-dependencies (generated with [`pydeps`](https://github.com/thebjorn/pydeps)):
+
+![alt text](../master/references/src_deps.svg?raw=true&sanitize=true)
+
+
 To avoid sharing private data, like the contents of tweets for instance, we
 filter out the notebooks' outputs by adding a `.gitattributes` file in
 `notebooks/`, which calls a filter defined in `.git/config` by the following script:
