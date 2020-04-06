@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 def get_global_vmin_vmax(cell_plot_df, metric_dict, grps_dict, min_count=0):
     '''
@@ -15,8 +14,8 @@ def get_global_vmin_vmax(cell_plot_df, metric_dict, grps_dict, min_count=0):
         # We initialize with plus and minus infinity
         vmin = np.inf
         vmax = -np.inf
-        for grp, grp_dict in grps_dict.items():
-            grp_metric_col = grp_dict[metric_dict['name'] + '_col']
+        for _, grp_dict in grps_dict.items():
+            grp_metric_col = grp_dict.get(metric_dict['name'] + '_col')
             vmin_col, vmax_col = get_col_vmin_vmax(cell_plot_df, metric_dict,
                                                    col=grp_metric_col,
                                                    min_count=min_count)

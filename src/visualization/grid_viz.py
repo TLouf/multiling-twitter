@@ -73,9 +73,9 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
         # of ax and the padding between cax and ax will be fixed at 0.1 inch.
         cax = divider.append_axes("right", size="5%", pad=0.1)
         cbar = fig.colorbar(sm, cax=cax, label=cbar_label)
-
+    
     if save_path:
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
     if show:
         plt.show()
     plt.close()
@@ -154,7 +154,7 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
     for i, plot_grp in enumerate(grps_dict):
         grp_dict = grps_dict[plot_grp]
         readable_grp = grp_dict['readable']
-        metric_grp_col = grp_dict[metric + '_col']
+        metric_grp_col = f'{metric}_{plot_grp}'
         if metric_dict.get('log_scale'):
             z, colorbar = config_log_plot(
                 cell_plot_df[metric_grp_col], og_zmin, og_zmax)

@@ -11,7 +11,7 @@ def top_lang_speakers(user_langs_agg, area_dict, lang_relevant_count,
     of users and proportion. The data comes from a user-aggregate level, in
     `user_langs_agg`, which lists all users and the languages each speaks.
     '''
-    country_name = area_dict['readable']
+    area_name = area_dict['readable']
     cc = area_dict['cc']
     # Get the number of users speaking every language, and sort the languages
     # starting with the most spoken.
@@ -25,26 +25,32 @@ def top_lang_speakers(user_langs_agg, area_dict, lang_relevant_count,
     top_counts = area_langs_counts.values[:10]
 
     plt.bar(top_langs, top_counts)
-    plt.title(f'Ten languages with the most speakers in {country_name}')
+    plt.title(f'Ten languages with the most speakers in {area_name}')
     plt.ylabel('number of speakers')
     if fig_dir:
         file_name = (
-            f'top_langs_speakers_count_cc={cc}_count_th={lang_relevant_count}_'
-            f'prop_th={lang_relevant_prop}.pdf')
-        save_path = os.path.join(fig_dir, cc, file_name)
+            f'top_langs_speakers_count_{area_name}_count_th='
+            f'{lang_relevant_count}_prop_th={lang_relevant_prop}.pdf')
+        save_dir = os.path.join(fig_dir, cc)
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        save_path = os.path.join(save_dir, file_name)
         plt.savefig(save_path)
     if show:
         plt.show()
     plt.clf()
 
     plt.bar(top_langs, top_counts/total_count)
-    plt.title(f'Ten languages with the most speakers in {country_name}')
+    plt.title(f'Ten languages with the most speakers in {area_name}')
     plt.ylabel('proportion of the users speaking')
     if fig_dir:
         file_name = (
-            f'top_langs_speakers_prop_cc={cc}_count_th={lang_relevant_count}_'
-            f'prop_th={lang_relevant_prop}.pdf')
-        save_path = os.path.join(fig_dir, cc, file_name)
+            f'top_langs_speakers_prop_{area_name}_count_th='
+            f'{lang_relevant_count}_prop_th={lang_relevant_prop}.pdf')
+        save_dir = os.path.join(fig_dir, cc)
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        save_path = os.path.join(save_dir, file_name)
         plt.savefig(save_path)
     if show:
         plt.show()
@@ -59,30 +65,36 @@ def ling_grps(multiling_grps, ling_counts, total_count, area_dict,
     number of users and proportion. The data comes directly from `ling_counts`,
     which has the counts for every group in `multiling_grps`.
     '''
-    country_name = area_dict['readable']
+    area_name = area_dict['readable']
     cc = area_dict['cc']
     x_plot = [grp[5:] for grp in multiling_grps]
     plt.bar(x_plot, ling_counts)
-    plt.title(f'Local languages groups in {country_name}')
+    plt.title(f'Local languages groups in {area_name}')
     plt.ylabel('number in the group')
     if fig_dir:
         file_name = (
-            f'multilinguals_count_cc={cc}_count_th={lang_relevant_count}_'
-            f'prop_th={lang_relevant_prop}.pdf')
-        save_path = os.path.join(fig_dir, cc, file_name)
+            f'multilinguals_count_{area_name}_count_th={lang_relevant_count}'
+            f'_prop_th={lang_relevant_prop}.pdf')
+        save_dir = os.path.join(fig_dir, cc)
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        save_path = os.path.join(save_dir, file_name)
         plt.savefig(save_path)
     if show:
         plt.show()
     plt.clf()
 
     plt.bar(x_plot, ling_counts/total_count)
-    plt.title(f'Local languages groups in {country_name}')
+    plt.title(f'Local languages groups in {area_name}')
     plt.ylabel('proportion out of the total population')
     if fig_dir:
         file_name = (
-            f'multilinguals_prop_cc={cc}_count_th={lang_relevant_count}_'
-            f'prop_th={lang_relevant_prop}.pdf')
-        save_path = os.path.join(fig_dir, cc, file_name)
+            f'multilinguals_prop_{area_name}_count_th={lang_relevant_count}'
+            f'_prop_th={lang_relevant_prop}.pdf')
+        save_dir = os.path.join(fig_dir, cc)
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        save_path = os.path.join(save_dir, file_name)
         plt.savefig(save_path)
     if show:
         plt.show()
@@ -131,8 +143,11 @@ def metric_grid(cell_plot_df, metric_dict, shape_df, grps_dict, country_name,
     for grp, grp_dict in grps_dict.items():
         grp_label = grp_dict['grp_label']
         plot_title = f'{readable_metric} of {grp_label} in {country_name}'
-        metric_col = grp_dict[metric + '_col']
         cbar_label = f'{readable_metric} of {grp_label} in the cell'
+        # If the metric is already over all groups on the cell level,
+        # then we'll have a single group in grp_dict and the column in
+        # `cell_plot_df` will simply be the name of the metric.
+        grp_metric_col = grp_dict.get(metric_dict['name'] + '_col') or metric
         if save_path_format:
             save_path = save_path_format.format(grp=grp)
         else:
@@ -140,8 +155,8 @@ def metric_grid(cell_plot_df, metric_dict, shape_df, grps_dict, country_name,
         # The cells with a count not relevant enough will simply not be plotted,
         # they'll have the background color.
         plot_kwargs = dict(edgecolor='w', linewidths=0.2, cmap=cmap)
-        ax_prop = grid_viz.plot_grid(
-            cell_plot_df.loc[count_mask], shape_df, metric_col=metric_col,
+        grid_viz.plot_grid(
+            cell_plot_df.loc[count_mask], shape_df, metric_col=grp_metric_col,
             save_path=save_path, title=plot_title, cbar_label=cbar_label,
             xy_proj=xy_proj, log_scale=log_scale, vmin=vmin, vmax=vmax,
             null_color=null_color, **plot_kwargs)
