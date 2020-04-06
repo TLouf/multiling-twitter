@@ -78,7 +78,7 @@ def intersect_to_cells(cells_in_places, cells_df, count_cols):
 
 
 def get_all_area_counts(users_home_areas, user_langs_agg, users_ling_grp,
-                        plot_langs_dict, multiling_grps):
+                        plot_langs_dict, plot_lings_dict):
     '''
     Based on which language group the users belong to (given in `user_langs_agg`
     and `users_ling_grp`) and in which area they reside (`users_home_areas`), 
@@ -108,8 +108,8 @@ def get_all_area_counts(users_home_areas, user_langs_agg, users_ling_grp,
     # that every other count is 0.
     areas_counts = areas_counts.join(areas_local_counts, how='left')
     existing_lings = areas_ling_counts.index.get_level_values('ling_grp')
-    for ling in multiling_grps:
-        ling_count_col = f'count_{ling}'
+    for ling, ling_dict in plot_lings_dict.items():
+        ling_count_col = ling_dict['count_col']
         if ling in existing_lings:
             areas_grp_count = (areas_ling_counts.xs(ling, level='ling_grp')
                                                 .rename(ling_count_col))
@@ -132,10 +132,10 @@ def get_all_area_counts(users_home_areas, user_langs_agg, users_ling_grp,
 
 def home_places_to_cells(cell_plot_df, user_only_place, places_geodf,
                          user_langs_agg, users_ling_grp, plot_langs_dict,
-                         multiling_grps):
+                         plot_lings_dict):
     '''
     Appends new columns to `cell_plot_df` with the counts by cell of the
-    language groups described in `plot_langs_dict` and `multiling_grps`. The
+    language groups described in `plot_langs_dict` and `plot_lings_dict`. The
     counts are calculated from the user counts in `user_langs_agg` and
     `users_ling_grp` respectively, for the users who only have a place of
     residence, which is given in `user_only_place`. The cell counts are then
@@ -144,7 +144,7 @@ def home_places_to_cells(cell_plot_df, user_only_place, places_geodf,
     '''
     places_counts = get_all_area_counts(
         user_only_place, user_langs_agg, users_ling_grp, plot_langs_dict,
-        multiling_grps)
+        plot_lings_dict)
     cells_in_places = get_intersect(cell_plot_df, places_geodf, places_counts)
     count_cols = places_counts.columns
     cell_plot_df = intersect_to_cells(cells_in_places, cell_plot_df, count_cols)

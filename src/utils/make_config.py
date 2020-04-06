@@ -6,46 +6,46 @@ area of interest, whether it's a whole country, or only a region, or whether
 each country is simply in a JSON file in data/external, read into the
 dictionary `countries_study_data` then used to make the `area_dict`.
 '''
-import os
-import pycld2
 from itertools import combinations
+import pycld2
 
-LANGS_DICT = dict([(lang[1],lang[0].lower().capitalize())
+
+LANGS_DICT = dict([(lang[1], lang[0].lower().capitalize())
                    for lang in pycld2.LANGUAGES])
 
 
 def area_dict(countries_study_data, cc, region=None):
     if region:
-        area_dict = countries_study_data[cc]['regions'][region]
+        region_dict = countries_study_data[cc]['regions'][region]
     else:
-        area_dict = countries_study_data[cc]
-    area_dict['cc'] = cc
-    area_dict['region'] = region
-    return area_dict
+        region_dict = countries_study_data[cc]
+    region_dict['cc'] = cc
+    region_dict['region'] = region
+    return region_dict
 
 
-def shapefile_dict(area_dict, cc, region=None,
+def shapefile_dict(region_dict, cc, region=None,
                    default_shapefile='CNTR_RG_01M_2016_4326.shp'):
-    shapefile_name = area_dict.get('shapefile_name')
+    shapefile_name = region_dict.get('shapefile_name')
     if shapefile_name is None:
         shapefile_name = default_shapefile
-    if region:
-        shapefile_name_col = area_dict['shapefile_name_col']
-        shapefile_name_val = region
-    else:
+    if region == cc or region is None:
         shapefile_name_col = 'FID'
         shapefile_name_val = cc
-    shapefile_dict = {
+    else:
+        shapefile_name_col = region_dict['shapefile_name_col']
+        shapefile_name_val = region_dict['shapefile_name_val']
+    shapefile_res = {
         'cc': cc,
         'region': region,
         'name': shapefile_name,
         'col': shapefile_name_col,
         'val': shapefile_name_val}
-    return shapefile_dict
+    return shapefile_res
 
 
-def langs_dict(area_dict, level_lang_label_format):
-    plot_langs_list = area_dict['local_langs']
+def langs_dict(region_dict, level_lang_label_format):
+    plot_langs_list = region_dict['local_langs']
     plot_langs_dict = {}
     for plot_lang in plot_langs_list:
         readable_lang = LANGS_DICT[plot_lang]
@@ -60,10 +60,10 @@ def langs_dict(area_dict, level_lang_label_format):
     return plot_langs_dict
 
 
-def linguals_dict(area_dict):
+def linguals_dict(region_dict):
     plot_linguals_dict = {}
     all_mulitling_types = {1: 'mono', 2: 'bi', 3: 'tri', 4: 'quadri'}
-    plot_langs_list = area_dict['local_langs']
+    plot_langs_list = region_dict['local_langs']
     plot_langs_list.sort()
     lings_list = []
     # Get all possible kinds of multilinguals in lings_list

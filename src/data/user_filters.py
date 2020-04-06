@@ -1,17 +1,20 @@
-import numpy as np
-import pandas as pd
-import geopandas as geopd
-import multiprocessing as mp
-import src.utils.join_and_count as join_and_count
-import src.data.access as data_access
-import src.data.user_agg as uagg
-from shapely.geometry import Point
 '''
 Every filter returns a series with as index uids, and as values a boolean,
 which in every case says whether this uid shoud be kept. Thus so some functions
 may return a series full of False if it's users to exclude, or full of True
 if they're the only users to keep.
 '''
+import logging
+import multiprocessing as mp
+import numpy as np
+import pandas as pd
+import geopandas as geopd
+from shapely.geometry import Point
+import src.utils.join_and_count as join_and_count
+import src.data.access as data_access
+import src.data.user_agg as uagg
+
+LOGGER = logging.getLogger(__name__)
 
 def inc_months_activity(tweeted_months_users_agg, tweets_df, ref_year=2015,
                         id_col='id', uid_col='uid', dt_col='created_at'):
@@ -48,8 +51,8 @@ def consec_months(tweeted_months_users_agg, nr_consec_months=3, uid_col='uid'):
         count_months_tweeted >= nr_consec_months]
     tweeted_months_users = tweeted_months_users.reset_index()
     nr_users = len(tweeted_months_users[uid_col].unique())
-    print(f'There are {nr_users} users with at least {nr_consec_months} months'
-           ' of activity in the dataset.')
+    LOGGER.info(f'There are {nr_users} users with at least {nr_consec_months} '
+                'months of activity in the dataset.')
     # At first the following was implemented on a user basis (using groupby),
     # but in the end it's cheaper to shift everything first, and then check
     # we're on the same uid. So first, every row is shifted downwards by
@@ -65,9 +68,9 @@ def consec_months(tweeted_months_users_agg, nr_consec_months=3, uid_col='uid'):
     local_uids = tweeted_months_users.loc[
         mask_same_uid & mask_consec_months, uid_col].unique()
     nr_users = len(local_uids)
-    print(f'There are {nr_users} users considered local in the dataset, as they'
-          f' have been active for {nr_consec_months} consecutive months in this'
-          ' area at least once.')
+    LOGGER.info(f'There are {nr_users} users considered local in the dataset, '
+                f'as they have been active for {nr_consec_months} consecutive '
+                'months in this area at least once.')
     local_uids = pd.Series(True, index=local_uids, name='local')
     local_uids.index.name = 'uid'
     return local_uids
@@ -95,9 +98,9 @@ def bot_activity(tweeted_months_users_agg, max_tweets_per_min=3):
     # We only keep in the index the UIDs to exclude.
     bot_uids = not_bot_mask.rename('bot').loc[~not_bot_mask]
     bot_uids.index.name = 'uid'
-    print(f'{len(bot_uids)} users have been found to be bots because of their '
-          f'excessive activity, tweeting more than {max_tweets_per_min} times '
-          'per minute.')
+    LOGGER.info(f'{len(bot_uids)} users have been found to be bots because of '
+                f'their excessive activity, tweeting more than '
+                f'{max_tweets_per_min} times per minute.')
     return bot_uids
 
 
@@ -161,32 +164,41 @@ def too_fast(raw_tweets_df, places_in_xy, max_distance, speed_th=280,
     too_fast_uids = pd.Series(
         False, index=tweets_df['uid'].unique(), name='too_fast')
     too_fast_uids.index.name = 'uid'
-    print(f'{len(too_fast_uids)} users have been found in this chunk with a '
-          f'speed exceeding {speed_th*3.6:n} km/h.')
+    LOGGER.info(f'{len(too_fast_uids)} users have been found in this chunk with'
+                f' a speed exceeding {speed_th*3.6:n} km/h.')
     return too_fast_uids
 
 
-def filters_chunk_pass(df_access, get_df_fun, places_in_xy, max_distance,
+def filters_chunk_pass(df_access, get_df_fun, areas_dict,
                        cols=None, ref_year=2015):
+    return_dict = {}
     tweets_df = get_df_fun(df_access)
-    tweets_df = data_access.filter_df(
-        tweets_df, cols=cols, dfs_to_join=[places_in_xy])
-    months_counts = uagg.users_months(tweets_df, ref_year=ref_year)
-    too_fast_uids = too_fast(tweets_df, places_in_xy, max_distance)
-    return months_counts, too_fast_uids
+    for region, region_dict in areas_dict['regions'].items():
+        places_geodf = region_dict['places_geodf']
+        shape_df = region_dict['shape_df']
+        area_bounds = shape_df.geometry.iloc[0].bounds
+        # Get an upper limit of the distance that can be travelled inside the
+        # area
+        max_distance = np.sqrt((area_bounds[0]-area_bounds[2])**2 
+                            + (area_bounds[1]-area_bounds[3])**2)
+        region_tweets_df = data_access.filter_df(
+            tweets_df, cols=cols, dfs_to_join=[places_geodf])
+        months_counts = uagg.users_months(region_tweets_df, ref_year=ref_year)
+        too_fast_uids = too_fast(region_tweets_df, places_geodf, max_distance)
+        return_dict[region] = {}
+        return_dict[region]['months_counts'] = months_counts
+        return_dict[region]['too_fast_uids'] = too_fast_uids
+    return return_dict
     
     
-def get_valid_uids(places_geodf, shape_df, get_df_fun, collect_filters_pass_res,
+def get_valid_uids(areas_dict, get_df_fun, collect_filters_pass_res,
                    filters_pass_res, tweets_files_paths, cpus=8):
-    
-    area_bounds = shape_df.geometry.iloc[0].bounds
-    # Get an upper limit of the distance that can be travelled inside the area
-    max_distance = np.sqrt((area_bounds[0]-area_bounds[2])**2 
-                           + (area_bounds[1]-area_bounds[3])**2)
     cols = ['uid', 'created_at', 'place_id', 'coordinates']
     pool = mp.Pool(cpus)
-    for df_access in data_access.yield_tweets_access(tweets_files_paths):
-        args = (df_access, get_df_fun, places_geodf, max_distance)
+    for i, df_access in enumerate(
+            data_access.yield_tweets_access(tweets_files_paths)):
+        LOGGER.info(f'- starting on chunk {i}')
+        args = (df_access, get_df_fun, areas_dict)
         kwargs = {'cols': cols}
         pool.apply_async(
             filters_chunk_pass, args, kwargs,
@@ -194,36 +206,40 @@ def get_valid_uids(places_geodf, shape_df, get_df_fun, collect_filters_pass_res,
     pool.close()
     pool.join()
     
-    tweeted_months_users = join_and_count.init_counts(['uid', 'month'])
-    all_too_fast_uids = pd.Series([])
-    all_too_fast_uids.index.name = 'uid'
-    for res in filters_pass_res:
-        months_counts = res[0]
-        tweeted_months_users = join_and_count.increment_join(
-            tweeted_months_users, months_counts)
-        too_fast_uids = res[1]
-        all_too_fast_uids = (all_too_fast_uids * too_fast_uids).fillna(False)
-            
-    tweeted_months_users = tweeted_months_users['count']
-    total_nr_users = len(tweeted_months_users.index.levels[0])
-    print(f'In total, there are {total_nr_users} distinct users in the whole '  
-          'dataset.')
-    
-    local_uids = consec_months(tweeted_months_users)
-    bot_uids = bot_activity(tweeted_months_users)
-    # We have local_uids: index of uids with a column full of True, and
-    # bot_uids: index of uids with a column full of False. When we multiply
-    # them, the uids in local_uids which are not in bot_uids are assigned NaN,
-    # and the ones which are in bot_uids are assigned False. When we convert to
-    # the boolean type, the NaNs turn to True.
-    valid_uids = (local_uids * bot_uids).astype('bool').rename('valid')
-    valid_uids = valid_uids.loc[valid_uids]
-    print(f'In total, there are {len(all_too_fast_uids)} too fast users '
-          'to filter out in the whole dataset.')
-    valid_uids = ((valid_uids * all_too_fast_uids).astype('bool')
-                                                  .rename('valid'))
-    valid_uids = valid_uids.loc[valid_uids]
-    print(f'This leaves us with {len(valid_uids)} valid users in the whole '   
-          'dataset.')
-    return valid_uids
+    for region, region_dict in areas_dict['regions'].items():
+        region_name = region_dict['readable']
+        tweeted_months_users = join_and_count.init_counts(['uid', 'month'])
+        all_too_fast_uids = pd.Series([])
+        all_too_fast_uids.index.name = 'uid'
+        for res in filters_pass_res:
+            months_counts = res[region]['months_counts'] 
+            tweeted_months_users = join_and_count.increment_join(
+                tweeted_months_users, months_counts)
+            too_fast_uids = res[region]['too_fast_uids'] 
+            all_too_fast_uids = (all_too_fast_uids * too_fast_uids).fillna(False)
+                
+        tweeted_months_users = tweeted_months_users['count']
+        total_nr_users = len(tweeted_months_users.index.levels[0])
+        LOGGER.info(f'There are {total_nr_users} distinct users in the whole '  
+                    f'dataset in {region_name}.')
+        
+        local_uids = consec_months(tweeted_months_users)
+        bot_uids = bot_activity(tweeted_months_users)
+        # We have local_uids: index of uids with a column full of True, and
+        # bot_uids: index of uids with a column full of False. When we multiply
+        # them, the uids in local_uids which are not in bot_uids are assigned NaN,
+        # and the ones which are in bot_uids are assigned False. When we convert to
+        # the boolean type, the NaNs turn to True.
+        valid_uids = (local_uids * bot_uids).astype('bool').rename('valid')
+        valid_uids = valid_uids.loc[valid_uids]
+        LOGGER.info(f'There are {len(all_too_fast_uids)} too fast users to '
+                    f'filter out in the whole dataset in {region_name}.')
+        valid_uids = ((valid_uids * all_too_fast_uids).astype('bool')
+                                                    .rename('valid'))
+        valid_uids = valid_uids.loc[valid_uids]
+        LOGGER.info(f'This leaves us with {len(valid_uids)} valid users in the '
+                    f'whole dataset in {region_name}.')
+        areas_dict['regions'][region]['valid_uids'] = valid_uids
+        
+    return areas_dict
     

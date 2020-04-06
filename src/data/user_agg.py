@@ -1,6 +1,5 @@
 import pandas as pd
 import geopandas as geopd
-import src.data.access as data_access
 import src.data.process as data_process
 import src.visualization.helpers as helpers_viz
 
@@ -22,50 +21,68 @@ def users_months(raw_tweets_df, ref_year=2015):
     return months_counts
 
 
-def get_lang_loc_habits(df_access, get_df_fun, valid_uids, places_geodf,
-                        langs_agg_dict, cells_df_list, max_place_area,
-                        cc_timezone, text_col='text', min_nr_words=4,
+def get_lang_loc_habits(df_access, get_df_fun, areas_dict, langs_agg_dict,
+                        text_col='text', min_nr_words=4,
                         cld='pycld2', latlon_proj='epsg:4326'):
     '''
     Given a dataframe access and `get_df_fun` (see
     `data_access.yield_tweets_access`), returns three Series aggregated at the
     user level, about users in `valid_uids`. The first has how many tweets each
     user has posted in each language they tweeted. The second and the third
-    series contains the counts of their tweets in the places defined in
+    series contain the counts of their tweets in the places defined in
     `places_geodf` and in the cells defined in `cells_in_area_df`, divided
     between those posted within and outside work hours (see
     `data_process.prep_resid_attr` about the definition of work hours).
     '''
-    tweets_df = data_process.process(
-        df_access, get_df_fun, valid_uids, places_geodf, langs_agg_dict,
-        min_nr_words=min_nr_words, cld=cld)
+    return_dict = {}
+    raw_tweets_df = get_df_fun(df_access)
+    for region, region_dict in areas_dict['regions'].items():
+        cells_df_list = region_dict['cells_df_list']
+        places_geodf = region_dict['places_geodf']
+        valid_uids = region_dict['valid_uids']
+        cc_timezone = region_dict['timezone']
+        max_place_area = region_dict.get('max_place_area') or 1e9
 
-    groupby_cols = ['uid', 'cld_lang']
-    user_langs_counts = (tweets_df
-                            .assign(**{'count': 0})
-                            .groupby(groupby_cols)['count'].count())
+        tweets_df = data_process.process(
+            raw_tweets_df, valid_uids, places_geodf, langs_agg_dict,
+            min_nr_words=min_nr_words, cld=cld, text_col=text_col, 
+            latlon_proj=latlon_proj)
 
-    relevant_area_mask = tweets_df['area'] < max_place_area
-    tweets_df = tweets_df.loc[relevant_area_mask]
-    tweets_df = data_process.isin_workhour_det(tweets_df, cc_timezone)
-    has_gps = tweets_df['area'] == 0
-    tweets_places_df = tweets_df.loc[~has_gps]
-    groupby_cols = ['uid', 'place_id', 'isin_workhour']
-    user_places_habits = (tweets_places_df
-                            .assign(**{'count': 0})
-                            .groupby(groupby_cols)['count'].count())
-
-    groupby_cols = ['uid', 'cell_id', 'isin_workhour']
-    user_cells_habits_list = []
-    for cells_in_area_df in cells_df_list:
-        tweets_cells_df = geopd.sjoin(tweets_df.loc[has_gps], cells_in_area_df,
-            op='within', rsuffix='cell', how='inner')
-        user_cells_habits = (tweets_cells_df
+        groupby_cols = ['uid', 'cld_lang']
+        user_langs_counts = (tweets_df
                                 .assign(**{'count': 0})
-                                .groupby(groupby_cols)['count'].count())
-        user_cells_habits_list.append(user_cells_habits)
+                                .groupby(groupby_cols)['count']
+                                .count())
 
-    return user_langs_counts, user_cells_habits_list, user_places_habits
+        relevant_area_mask = tweets_df['area'] < max_place_area
+        tweets_df = tweets_df.loc[relevant_area_mask]
+        tweets_df = data_process.isin_workhour_det(tweets_df, cc_timezone)
+        has_gps = tweets_df['area'] == 0
+        tweets_places_df = tweets_df.loc[~has_gps]
+        groupby_cols = ['uid', 'place_id', 'isin_workhour']
+        user_places_habits = (tweets_places_df
+                                .assign(**{'count': 0})
+                                .groupby(groupby_cols)['count']
+                                .count())
+
+        groupby_cols = ['uid', 'cell_id', 'isin_workhour']
+        user_cells_habits_list = []
+        for cells_in_area_df in cells_df_list:
+            tweets_cells_df = geopd.sjoin(
+                tweets_df.loc[has_gps], cells_in_area_df,
+                op='within', rsuffix='cell', how='inner')
+            user_cells_habits = (tweets_cells_df
+                                    .assign(**{'count': 0})
+                                    .groupby(groupby_cols)['count']
+                                    .count())
+            user_cells_habits_list.append(user_cells_habits)
+            
+        return_dict[region] = {}
+        return_dict[region]['user_langs_counts'] = user_langs_counts
+        return_dict[region]['user_cells_habits_list'] = user_cells_habits_list
+        return_dict[region]['user_places_habits'] = user_places_habits
+            
+    return return_dict
 
 
 def to_count_by_area(users_counts, users_area, output_col='count'):
@@ -75,7 +92,7 @@ def to_count_by_area(users_counts, users_area, output_col='count'):
     counts by area of residence.
     '''
     groupby_cols = users_area.name
-    if type(users_counts.index) == pd.MultiIndex:
+    if isinstance(users_counts.index, pd.MultiIndex):
         # `users_counts` must have 'uid' as first level and a language group
         # as second level
         groupby_cols = [users_counts.index.names[1], groupby_cols]
@@ -141,9 +158,9 @@ def get_ling_grp(user_langs_agg, area_dict, lang_relevant_prop=0.1,
     if fig_dir:
         helpers_viz.ling_grps(multiling_grps, ling_counts, total_count,
                               area_dict, lang_relevant_count,
-                              lang_relevant_prop, fig_dir=fig_dir, 
+                              lang_relevant_prop, fig_dir=fig_dir,
                               show=show_fig)
-    return users_ling_grp, multiling_grps
+    return users_ling_grp
 
 
 def get_home_place(raw_user_habits, place_id_col='place_id', relevant_th=0.1):
@@ -188,7 +205,7 @@ def get_residence(user_cells_habits, user_places_habits, place_relevant_th=0.1,
                   cell_relevant_th=0.1):
     '''
     Gets either the cell or, if not suited, the place of residence of every
-    user, based on heir tweeting habits in `user_cells_habits` and 
+    user, based on heir tweeting habits in `user_cells_habits` and
     `user_places_habits`. These two series count the number of tweets of every
     user by cell/place by period of the day (inside or outside work hours).
     '''

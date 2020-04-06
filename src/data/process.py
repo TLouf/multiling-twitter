@@ -4,7 +4,6 @@ import numpy as np
 from shapely.geometry import Point
 import src.data.text_process as text_process
 import src.data.access as data_access
-import src.utils.join_and_count as join_and_count
 
 
 def post_multi(results, min_length=10000):
@@ -46,18 +45,17 @@ def post_multi(results, min_length=10000):
     return results
 
 
-def process(df_access, get_df_fun, valid_uids, places_geodf, langs_agg_dict,
+def process(tweets_loc_df, valid_uids, places_geodf, langs_agg_dict,
             text_col='text', min_nr_words=4, cld='pycld2',
             latlon_proj='epsg:4326'):
     '''
-    Accesses a raw dataframe of tweets, filters it and assigns to each tweet
-    a geometry, based on its coordinates if available, or through its `place_id`
-    and the geometries of `places_geodf`. Then it assigns a language to every
-    tweet when possible, and returns the whole dataframe.
+    Takes a raw dataframe of tweets `tweets_loc_df`, filters it and assigns to
+    each tweet a geometry, based on its coordinates if available, or through its
+    `place_id` and the geometries of `places_geodf`. Then it assigns a language
+    to every tweet when possible, and returns the whole dataframe.
     '''
     cols = ['text', 'id', 'lang', 'place_id', 'coordinates', 'uid',
             'created_at', 'source']
-    tweets_loc_df = get_df_fun(df_access)
     tweets_loc_df = data_access.filter_df(
         tweets_loc_df, cols=cols, dfs_to_join=[places_geodf, valid_uids])
     # Happened for Quebec to get empty dataframes, to avoid errors we return

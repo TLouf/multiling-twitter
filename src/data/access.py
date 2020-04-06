@@ -1,15 +1,18 @@
-import os
-import paramiko
-import pandas as pd
-import gzip
-import numpy as np
-
 '''
 This module is aimed at reading JSON data files, either locally or from a remote
 host. The data files are not exactly JSON, they're files in which each line is a
 JSON object, thus making up a row of data, and in which each key of the JSON
 strings refers to a column.
 '''
+import os
+import gzip
+import logging
+import paramiko
+import pandas as pd
+import numpy as np
+
+LOGGER = logging.getLogger(__name__)
+
 
 def yield_tweets_access(tweets_files_paths, tweets_res=None):
     '''
@@ -33,25 +36,28 @@ def yield_tweets_access(tweets_files_paths, tweets_res=None):
             yield tweets_df
 
 
-def filter_df(raw_tweets_df, cols=None, dfs_to_join=[]):
+def filter_df(raw_tweets_df, cols=None, dfs_to_join=None):
     '''
     Filters `raw_tweets_df` via inner joins with a list of dataframes
     `dfs_to_join`, each of which must have their index corresponding to a column
     of `raw_tweets_df`. Can also choose to keep only some columns, with the list
     `cols`.
     '''
+    if dfs_to_join is None:
+        dfs_to_join = []
     filtered_tweets_df = raw_tweets_df.copy()
     if cols is None:
         cols = filtered_tweets_df.columns.values
     for df in dfs_to_join:
         filtered_tweets_df = filtered_tweets_df.join(df, on=df.index.name,
                                                      how='inner')
-    print(f'{filtered_tweets_df.shape[0]} tweets remaining after filters.')
+    new_nr_tweets = filtered_tweets_df.shape[0]
+    LOGGER.info(f'{new_nr_tweets} tweets remaining after filters.')
     filtered_tweets_df = filtered_tweets_df.loc[:, cols]
     return filtered_tweets_df
 
 
-def read_data(tweets_file_path, chunk_start, chunk_size, dfs_to_join=[],
+def read_data(tweets_file_path, chunk_start, chunk_size, dfs_to_join=None,
               cols=None, ssh_domain=None, ssh_username=None):
     '''
     Reads the JSON file at `tweets_file_path` starting at the byte `chunk_start`
@@ -59,6 +65,8 @@ def read_data(tweets_file_path, chunk_start, chunk_size, dfs_to_join=[],
     tweets DataFrame is filtered via inner joins with a list of dataframes
     `dfs_to_join`.
     '''
+    if dfs_to_join is None:
+        dfs_to_join = []
     raw_tweets_df = read_json_wrapper(
         tweets_file_path, chunk_start, chunk_size, ssh_domain=ssh_domain,
         ssh_username=ssh_username)
@@ -157,7 +165,8 @@ def read_json_wrapper(file_path, chunk_start, chunk_size, ssh_domain=None,
         lines = f.read(chunk_size)
         raw_tweets_df = pd.read_json(lines, lines=True)
         nr_tweets = len(raw_tweets_df)
-        print(f'{chunk_size*10**-6:.4g}MB read, {nr_tweets} tweets unpacked.')
+        LOGGER.info(f'{chunk_size*10**-6:.4g}MB read, {nr_tweets} tweets '
+                    'unpacked.')
         return raw_tweets_df
 
 
@@ -178,7 +187,7 @@ def chunkify(file_path, size=5e8, ssh_domain=None, ssh_username=None):
             f.seek(int(size), 1)
             # Read a line at this point, that is, read until a '\n' is
             # encountered:
-            final_line = f.readline()
+            f.readline()
             # Put the end of the chunk at the end of this line:
             chunk_end = f.tell()
             # If the end of the file is reached, f.tell() returns

@@ -1,16 +1,15 @@
+import re
 # Since cld3 can't be installed on some systems, we make it optional.
 try:
     import cld3
-    default_cld = 'cld3'
+    DEFAULT_CLD = 'cld3'
 except ModuleNotFoundError:
-    default_cld = 'pycld2'
+    DEFAULT_CLD = 'pycld2'
 import pycld2
-import pandas as pd
-import re
 import src.utils.my_exceptions as my_exceptions
 
 def lang_detect(tweets_df, text_col='text', min_nr_words=4, min_nr_cjk=4,
-                cld=default_cld, acc_th=0.9, langs_agg_dict={}):
+                cld=DEFAULT_CLD, acc_th=0.9, langs_agg_dict=None):
     '''
     From a DataFrame of tweets, detects the language of the text contained in
     'text_col' and output the result in new columns. Before calling a langauge
@@ -81,7 +80,7 @@ def lang_detect(tweets_df, text_col='text', min_nr_words=4, min_nr_cjk=4,
     (tweets_lang_df.loc[long_enough, 'cld_lang'],
      tweets_lang_df.loc[long_enough, 'proba']) = zip(
         *tweets_lang_df.loc[long_enough, 'filtered_text'].apply(
-            lambda t: make_predict(t, langs_agg_dict=langs_agg_dict)))
+            lambda t: make_predict(t, cld=cld, langs_agg_dict=langs_agg_dict)))
     acc_mask = tweets_lang_df['proba'] < acc_th
     un_mask = tweets_lang_df['cld_lang'] == 'un'
     tweets_lang_df.loc[acc_mask | un_mask, 'cld_lang'] = None
@@ -89,11 +88,13 @@ def lang_detect(tweets_df, text_col='text', min_nr_words=4, min_nr_cjk=4,
 
 
 
-def make_predict(text, cld=default_cld, langs_agg_dict={}):
+def make_predict(text, cld=DEFAULT_CLD, langs_agg_dict=None):
     '''
     From a string of text, gets the language detection from one of the CLD
     versions, and unpacks the results in a dictionary.
     '''
+    if langs_agg_dict is None:
+        langs_agg_dict = {}
     if  cld == 'cld3':
         raw_predict = cld3.get_language(text)
         lang = raw_predict.language

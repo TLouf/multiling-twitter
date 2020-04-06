@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import pandas as pd
-from pyproj import Transformer
 from shapely.geometry import MultiPolygon
 from shapely.geometry import Polygon
 from shapely.geometry import Point
@@ -74,10 +73,11 @@ def create_grid(shape_df, cell_size, xy_proj='epsg:3857', intersect=False):
         cells_in_shape_df = geopd.overlay(
             cells_df, shape_df[['geometry']], how='intersection')
         cells_in_shape_df.index = cells_in_shape_df['cell_id']
+        cells_in_shape_df.cell_size = cell_size
     else:
         cells_in_shape_df = None
+        
     cells_df.cell_size = cell_size
-    cells_in_shape_df.cell_size = cell_size
     return cells_df, cells_in_shape_df, Nx-1, Ny-1
 
 
@@ -105,7 +105,7 @@ def extract_shape(shape_df, shapefile_dict,
         if simplify_tol is None:
             simplify_tol = max_distance / 1000
 
-    if type(shapely_geo) == MultiPolygon:
+    if isinstance(shapely_geo, MultiPolygon):
         if min_area is None:
             min_area = max_distance**2 / 1000
         # We delete the polygons in the multipolygon which are too small and
@@ -126,7 +126,6 @@ def geo_from_bbox(bbox):
     geometry and its area. If the four coordinates are actually the same, they
     define a null-area Polygon, or rather something better defined as a Point.
     '''
-    bbox = bbox['coordinates'][0]
     geo = Polygon(bbox)
     area = geo.area
     if area == 0:
@@ -141,9 +140,35 @@ def make_places_geodf(raw_places_df, shape_df, latlon_proj='epsg:4326',
     their centroid within `shape_df`, and calculates their area within the shape
     in squared meters.
     '''
+    shape_in_latlon = shape_df[['geometry']].to_crs(latlon_proj)
+    shape_min_lon, shape_min_lat, shape_max_lon, shape_max_lat = (
+        shape_in_latlon['geometry'].iloc[0].bounds)
     # Very few places have a null bounding box, 2 of them in Canada for
     # instance, so we get rid of those.
     places_df = raw_places_df.dropna(subset=['bounding_box']).copy()
+    places_df['bounding_box'] = places_df['bounding_box'].apply(
+        lambda bbox: bbox['coordinates'][0])
+    # We will first filter out places which are outside of or bigger than the
+    # shape we're considering. This may seem redundant with what follows, but
+    # this part is much faster to run, and allows the following operations to
+    # run much faster, as the size of `places_df` can be greatly reduced (for
+    # instance when considering a state of the US, which has more than a million
+    # entries in `places_df`).
+    places_df['min_lon'] = places_df['bounding_box'].apply(lambda x: x[0][0])
+    places_df['min_lat'] = places_df['bounding_box'].apply(lambda x: x[0][1])
+    places_df['max_lon'] = places_df['bounding_box'].apply(lambda x: x[2][0])
+    places_df['max_lat'] = places_df['bounding_box'].apply(lambda x: x[2][1])
+    is_bot_left_in_shape = ((places_df['min_lon'] < shape_max_lon) 
+                            & (places_df['min_lon'] > shape_min_lon)
+                            & (places_df['min_lat'] < shape_max_lat)
+                            & (places_df['min_lat'] > shape_min_lat))
+    is_top_right_in_shape = ((places_df['max_lon'] < shape_max_lon) 
+                             & (places_df['max_lon'] > shape_min_lon)
+                             & (places_df['max_lat'] < shape_max_lat)
+                             & (places_df['max_lat'] > shape_min_lat))
+    shape_mask = is_bot_left_in_shape | is_top_right_in_shape
+    places_df = places_df.loc[shape_mask]
+    
     places_df['geometry'], places_df['area'] = zip(
         *places_df['bounding_box'].apply(geo_from_bbox))
     places_geodf = geopd.GeoDataFrame(
@@ -153,7 +178,6 @@ def make_places_geodf(raw_places_df, shape_df, latlon_proj='epsg:4326',
     # (useful when we're only interested in the region of a country).
     places_centroids = geopd.GeoDataFrame(
         geometry=places_geodf[['geometry']].centroid, crs=latlon_proj)
-    shape_in_latlon = shape_df[['geometry']].to_crs(latlon_proj)
     places_in_shape = geopd.sjoin(places_centroids, shape_in_latlon,
                                   op='within', rsuffix='shape')
     places_geodf = places_geodf.join(places_in_shape['index_shape'],
@@ -171,7 +195,7 @@ def make_places_geodf(raw_places_df, shape_df, latlon_proj='epsg:4326',
     polygons_in_shape = polygons_in_shape.set_index('id')
     places_geodf.loc[poly_mask, 'area'] = polygons_in_shape.area
     places_geodf = places_geodf.drop(
-        columns=['bounding_box', 'id','index_shape'])
+        columns=['bounding_box', 'id', 'index_shape'])
     places_geodf.index.name = 'place_id'
     places_geodf.cc = shape_df.cc
     places_in_xy = places_geodf.geometry.to_crs(xy_proj)
@@ -180,6 +204,10 @@ def make_places_geodf(raw_places_df, shape_df, latlon_proj='epsg:4326',
 
 
 def d_matrix_from_cells(cell_plot_df):
+    '''
+    Generates a matrix of distances between pairs of cell centroids, for every
+    combination of cells found in `cell_plot_df`.
+    '''
     n_cells = cell_plot_df.shape[0]
     d_matrix = np.zeros((n_cells, n_cells))
     cells_centroids = cell_plot_df.geometry.centroid.values
@@ -189,22 +217,15 @@ def d_matrix_from_cells(cell_plot_df):
     return d_matrix
 
 
-def init_cc(area_dict, cell_sizes_list, places_files_paths, 
-            project_data_dir):
-
-    cc = area_dict['cc']
-    region = area_dict['region']
-    xy_proj = area_dict['xy_proj']
-    min_poly_area = area_dict.get('min_poly_area')
-
-    shapefile_dict = make_config.shapefile_dict(area_dict, cc, region=region)
-    shapefile_path = os.path.join(project_data_dir, 
-                                  'external', 
-                                  shapefile_dict['name'], 
-                                  shapefile_dict['name'])
-    shape_df = geopd.read_file(shapefile_path)
-    shape_df = extract_shape(shape_df, shapefile_dict, xy_proj=xy_proj,
-                             min_area=min_poly_area)
+def init_cc(areas_dict, cell_sizes_list, places_files_paths, project_data_dir):
+    '''
+    Initializes a run for a country, generating cell geodataframes for every
+    cell size in `cell_sizes_list` and a places geodataframe from the data files
+    in `places_files_paths`. All this is done for every region considered for
+    the run, described in `areas_dict`.
+    '''
+    cc = areas_dict['cc']
+    regions = areas_dict['regions']
     all_raw_places_df = []
     for file in places_files_paths:
         raw_places_df = data_access.return_json(file)
@@ -212,13 +233,34 @@ def init_cc(area_dict, cell_sizes_list, places_files_paths,
             raw_places_df[['id', 'bounding_box', 'name', 'place_type']])
     # We drop the duplicate places (based on their ID)
     places_df = pd.concat(all_raw_places_df).drop_duplicates(subset='id')
-    places_geodf, places_in_xy = make_places_geodf(places_df, shape_df,
-                                                       xy_proj=xy_proj)
-
-    cells_df_list = []
-    for cell_size in cell_sizes_list:
-        cells_df, cells_in_area_df, Nx, Ny = create_grid(
-            shape_df, cell_size, xy_proj=xy_proj, intersect=True)
-        cells_df_list.append(cells_in_area_df)
+    print('reading of places data files is done')
+    
+    for area, area_dict in regions.items():
+        xy_proj = area_dict['xy_proj']
+        min_poly_area = area_dict.get('min_poly_area')
+        shapefile_dict = make_config.shapefile_dict(area_dict, cc, region=area)
+        shapefile_path = os.path.join(project_data_dir,
+                                      'external',
+                                      shapefile_dict['name'],
+                                      shapefile_dict['name'])
+        shape_df = geopd.read_file(shapefile_path)
+        shape_df = extract_shape(shape_df, shapefile_dict, xy_proj=xy_proj,
+                                 min_area=min_poly_area)
         
-    return shape_df, places_geodf, cells_df_list
+        places_geodf, _ = make_places_geodf(places_df, shape_df,
+                                            xy_proj=xy_proj)
+        print(f'places dataframe for {area} generated')
+
+        cells_df_list = []
+        for cell_size in cell_sizes_list:
+            _, cells_in_area_df, _, _ = create_grid(
+                shape_df, cell_size, xy_proj=xy_proj, intersect=True)
+            cells_df_list.append(cells_in_area_df)
+        print(f'cells dataframes for {area} generated')
+        
+        area_dict['shape_df'] = shape_df
+        area_dict['places_geodf'] = places_geodf
+        area_dict['cells_df_list'] = cells_df_list
+        areas_dict[area] = area_dict
+    
+    return areas_dict 
