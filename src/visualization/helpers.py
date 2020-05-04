@@ -35,7 +35,7 @@ def top_lang_speakers(user_langs_agg, area_dict, lang_relevant_count,
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         save_path = os.path.join(save_dir, file_name)
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
     if show:
         plt.show()
     plt.clf()
@@ -51,7 +51,7 @@ def top_lang_speakers(user_langs_agg, area_dict, lang_relevant_count,
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         save_path = os.path.join(save_dir, file_name)
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
     if show:
         plt.show()
     plt.clf()
@@ -79,7 +79,7 @@ def ling_grps(multiling_grps, ling_counts, total_count, area_dict,
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         save_path = os.path.join(save_dir, file_name)
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
     if show:
         plt.show()
     plt.clf()
@@ -95,7 +95,7 @@ def ling_grps(multiling_grps, ling_counts, total_count, area_dict,
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         save_path = os.path.join(save_dir, file_name)
-        plt.savefig(save_path)
+        plt.savefig(save_path, bbox_inches='tight')
     if show:
         plt.show()
     plt.clf()
@@ -122,7 +122,7 @@ def cluster_analysis(all_vars, max_nr_clusters=10, show=True):
 
 
 def metric_grid(cell_plot_df, metric_dict, shape_df, grps_dict, country_name,
-                cmap='coolwarm', save_path_format=None, xy_proj='epsg:3857',
+                cmap=None, save_path_format=None, xy_proj='epsg:3857',
                 min_count=0, null_color='None'):
     '''
     Plots the metric described in `metric_dict` for every group described in
@@ -139,7 +139,14 @@ def metric_grid(cell_plot_df, metric_dict, shape_df, grps_dict, country_name,
     count_mask = cell_plot_df[metric_dict['total_count_col']] > min_count
     vmin, vmax = scales.get_global_vmin_vmax(cell_plot_df, metric_dict,
                                              grps_dict, min_count=min_count)
-
+    vmin = metric_dict.get('vmin') or vmin
+    vmax = metric_dict.get('vmax') or vmax
+    if cmap is None:
+        if metric_dict.get('sym_about') is None:
+            cmap = 'plasma'
+        else:
+            cmap = 'bwr'
+            
     for grp, grp_dict in grps_dict.items():
         grp_label = grp_dict['grp_label']
         plot_title = f'{readable_metric} of {grp_label} in {country_name}'
@@ -150,6 +157,9 @@ def metric_grid(cell_plot_df, metric_dict, shape_df, grps_dict, country_name,
         grp_metric_col = grp_dict.get(metric_dict['name'] + '_col') or metric
         if save_path_format:
             save_path = save_path_format.format(grp=grp)
+            save_dir = os.path.split(save_path)[0]
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
         else:
             save_path = None
         # The cells with a count not relevant enough will simply not be plotted,

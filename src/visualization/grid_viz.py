@@ -184,11 +184,11 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
         updatemenus=[
             go.layout.Updatemenu(
                 buttons=buttons,
-                pad={"r": 10, "t": 10},
                 showactive=True,
-                x=0.11,
+                x=0.02,
+                y=0.98,
+                bgcolor='rgba(255, 255, 255, 0.8)',
                 xanchor="left",
-                y=1.1,
                 yanchor="top"
             ),
         ]
