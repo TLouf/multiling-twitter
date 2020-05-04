@@ -62,7 +62,7 @@ def langs_dict(region_dict, level_lang_label_format):
 
 def linguals_dict(region_dict):
     plot_linguals_dict = {}
-    all_mulitling_types = {1: 'mono', 2: 'bi', 3: 'tri', 4: 'quadri'}
+    all_mulitiling_types = {1: 'mono', 2: 'bi', 3: 'tri', 4: 'quadri'}
     plot_langs_list = region_dict['local_langs']
     plot_langs_list.sort()
     lings_list = []
@@ -77,7 +77,7 @@ def linguals_dict(region_dict):
         nr_langs_in_ling = len(ling)//2
         langs_in_ling = [ling[2*k:2*(k+1)] for k in range(nr_langs_in_ling)]
         readable_langs = [LANGS_DICT[lang] for lang in langs_in_ling]
-        multiling_type = all_mulitling_types[nr_langs_in_ling]
+        multiling_type = all_mulitiling_types.get(nr_langs_in_ling) or 'multi'
         readable_ling = '-'.join(readable_langs)
         ling_label = f"{readable_ling} {multiling_type}linguals"
         ling_count_label = f'Number of {ling_label} in the cell'
