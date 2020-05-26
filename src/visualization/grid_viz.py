@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import descartes
-import geopandas as geopd
 import IPython.display
 import plotly.graph_objects as go
 import plotly.offline

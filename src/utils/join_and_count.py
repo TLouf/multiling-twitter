@@ -1,7 +1,4 @@
 import pandas as pd
-import geopandas as geopd
-import json
-from shapely.geometry import Point
 
 def init_counts(groupby_cols, count_col='count'):
     '''

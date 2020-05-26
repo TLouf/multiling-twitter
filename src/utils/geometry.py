@@ -168,9 +168,9 @@ def make_places_geodf(raw_places_df, shape_df, latlon_proj='epsg:4326',
                              & (places_df['max_lat'] > shape_min_lat))
     shape_mask = is_bot_left_in_shape | is_top_right_in_shape
     places_df = places_df.loc[shape_mask]
-    
-    places_df['geometry'], places_df['area'] = zip(
-        *places_df['bounding_box'].apply(geo_from_bbox))
+    places_df['geometry'], places_df['area'] = [
+        pd.Series(x, index=places_df.index)
+        for x in zip(*places_df['bounding_box'].apply(geo_from_bbox))]
     places_geodf = geopd.GeoDataFrame(
         places_df, crs=latlon_proj, geometry=places_df['geometry'])
     places_geodf = places_geodf.set_index('id', drop=False)
@@ -190,10 +190,12 @@ def make_places_geodf(raw_places_df, shape_df, latlon_proj='epsg:4326',
     # need the actual geometry from the intersection, which is more complex and
     # thus slows down computations later on.
     poly_mask = places_geodf['area'] > 0
-    polygons_in_shape = geopd.overlay(
-        shape_df[['geometry']], places_geodf.loc[poly_mask], how='intersection')
-    polygons_in_shape = polygons_in_shape.set_index('id')
-    places_geodf.loc[poly_mask, 'area'] = polygons_in_shape.area
+    if places_geodf.loc[poly_mask].shape[0] > 0:
+        polygons_in_shape = geopd.overlay(
+            shape_df[['geometry']], places_geodf.loc[poly_mask],
+            how='intersection')
+        polygons_in_shape = polygons_in_shape.set_index('id')
+        places_geodf.loc[poly_mask, 'area'] = polygons_in_shape.area
     places_geodf = places_geodf.drop(
         columns=['bounding_box', 'id', 'index_shape'])
     places_geodf.index.name = 'place_id'

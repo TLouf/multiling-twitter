@@ -121,8 +121,8 @@ def cluster_analysis(all_vars, max_nr_clusters=10, show=True):
     return ax
 
 
-def metric_grid(cell_plot_df, metric_dict, shape_df, grps_dict, country_name,
-                cmap=None, save_path_format=None, xy_proj='epsg:3857',
+def metric_grid(cell_plot_df, metric_dict, shape_df, grps_dict,
+                save_path_format=None, xy_proj='epsg:3857',
                 min_count=0, null_color='None'):
     '''
     Plots the metric described in `metric_dict` for every group described in
@@ -141,6 +141,7 @@ def metric_grid(cell_plot_df, metric_dict, shape_df, grps_dict, country_name,
                                              grps_dict, min_count=min_count)
     vmin = metric_dict.get('vmin') or vmin
     vmax = metric_dict.get('vmax') or vmax
+    cmap = metric_dict.get('cmap')
     if cmap is None:
         if metric_dict.get('sym_about') is None:
             cmap = 'plasma'
@@ -149,7 +150,6 @@ def metric_grid(cell_plot_df, metric_dict, shape_df, grps_dict, country_name,
             
     for grp, grp_dict in grps_dict.items():
         grp_label = grp_dict['grp_label']
-        plot_title = f'{readable_metric} of {grp_label} in {country_name}'
         cbar_label = f'{readable_metric} of {grp_label} in the cell'
         # If the metric is already over all groups on the cell level,
         # then we'll have a single group in grp_dict and the column in
@@ -167,6 +167,7 @@ def metric_grid(cell_plot_df, metric_dict, shape_df, grps_dict, country_name,
         plot_kwargs = dict(edgecolor='w', linewidths=0.2, cmap=cmap)
         grid_viz.plot_grid(
             cell_plot_df.loc[count_mask], shape_df, metric_col=grp_metric_col,
-            save_path=save_path, title=plot_title, cbar_label=cbar_label,
-            xy_proj=xy_proj, log_scale=log_scale, vmin=vmin, vmax=vmax,
-            null_color=null_color, **plot_kwargs)
+            save_path=save_path, cbar_label=cbar_label, log_scale=log_scale,
+            xy_proj=xy_proj, vmin=vmin, vmax=vmax, null_color=null_color,
+            **plot_kwargs)
+            

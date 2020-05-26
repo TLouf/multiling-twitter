@@ -212,15 +212,16 @@ def get_valid_uids(areas_dict, get_df_fun, collect_filters_pass_res,
         all_too_fast_uids = pd.Series([])
         all_too_fast_uids.index.name = 'uid'
         for res in filters_pass_res:
-            months_counts = res[region]['months_counts'] 
+            months_counts = res[region]['months_counts']
             tweeted_months_users = join_and_count.increment_join(
                 tweeted_months_users, months_counts)
-            too_fast_uids = res[region]['too_fast_uids'] 
+            too_fast_uids = res[region]['too_fast_uids']
             all_too_fast_uids = (all_too_fast_uids * too_fast_uids).fillna(False)
                 
         tweeted_months_users = tweeted_months_users['count']
-        total_nr_users = len(tweeted_months_users.index.levels[0])
-        LOGGER.info(f'There are {total_nr_users} distinct users in the whole '  
+        total_nr_users = len(
+            tweeted_months_users.index.get_level_values('uid').unique())
+        LOGGER.info(f'There are {total_nr_users} distinct users in the whole '
                     f'dataset in {region_name}.')
         
         local_uids = consec_months(tweeted_months_users)
