@@ -1,6 +1,16 @@
 # Multilingualism study with Twitter data
 
-First tests on the multilingualism project on previously acquired data.
+This repository contains code I wrote as part of my work on a project studying
+multilingualism using Twitter data. It is part of my PhD at the
+[`IFISC`](https://ifisc.uib-csic.es/en/), under the supervision of José Javier
+Ramasco and David Sanchez. The code is used to analyse geo-tagged tweets sent
+within a set of multilingual countries, which were acquired over the years by
+the IFISC' data engineer, Antonia Tugores, using the streaming endpoint of the
+Twitter API. We attributed one or more languages to users, and a cell of
+residence, among the cells we define on a regular grid covering each region of
+interest. We visualise and then analyse the distributions of local languages
+using a set of metrics. The end goal is to assess the existing models of
+language competition.
 
 ## Project Organization
 ```
@@ -44,13 +54,13 @@ First tests on the multilingualism project on previously acquired data.
 
 To avoid sharing private data, like the contents of tweets for instance, we
 filter out the notebooks' outputs by adding a `.gitattributes` file in
-`notebooks/`, which calls a filter defined in `.git/config` by the following script:
+`notebooks/`, which calls a filter defined in `.git/config` by the following
+script:
 
 ```
 [filter "strip-notebook-output"]
     clean = "jupyter nbconvert --ClearOutputPreprocessor.enabled=True --to=notebook --stdin --stdout --log-level=ERROR"
 ```
-
 
 ## Install instructions
 Install all "classic" dependencies with
@@ -66,9 +76,11 @@ for now.
 Then for `geopandas` and its dependencies, it depends on your platform.
 
 #### Linux
-The problem here is to install `rtree`, and in particular its C dependency `libspatialindex`. There are three solutions to this.
+The problem here is to install `rtree`, and in particular its C dependency
+`libspatialindex`. There are three solutions to this.
 
-- The first is simple, but makes you use `conda`, so your whole environment then needs to be built with `conda`:
+- The first is simple, but makes you use `conda`, so your whole environment then
+  needs to be built with `conda`:
 
 
 ```
@@ -76,7 +88,8 @@ conda install --file requirements_geo.txt
 ```
 
 
-- The second solution just takes one more command, but installs `rtree` system-wide. You simply do
+- The second solution just takes one more command, but installs `rtree`
+  system-wide. You simply do
 
 ```
 sudo apt-get install python3-rtree
