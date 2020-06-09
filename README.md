@@ -2,15 +2,16 @@
 
 This repository contains code I wrote as part of my work on a project studying
 multilingualism using Twitter data. It is part of my PhD at the
-[`IFISC`](https://ifisc.uib-csic.es/en/), under the supervision of José Javier
-Ramasco and David Sanchez. The code is used to analyse geo-tagged tweets sent
-within a set of multilingual countries, which were acquired over the years by
-the IFISC' data engineer, Antonia Tugores, using the streaming endpoint of the
-Twitter API. We attributed one or more languages to users, and a cell of
-residence, among the cells we define on a regular grid covering each region of
-interest. We visualise and then analyse the distributions of local languages
-using a set of metrics. The end goal is to assess the existing models of
-language competition.
+[IFISC](https://ifisc.uib-csic.es/en/), under the supervision of 
+[José Javier Ramasco](https://ifisc.uib-csic.es/users/jramasco/) and 
+[David Sanchez](https://ifisc.uib-csic.es//users/dsanchez/). The code is used 
+to analyse geo-tagged tweets sent within a set of multilingual countries, which
+were acquired over the years by the IFISC' data engineer, Antonia Tugores, using
+the [streaming endpoint of the Twitter API](https://developer.twitter.com/en/docs/tweets/sample-realtime/overview/get_statuses_sample). We attributed one or more languages
+to users, and a cell of residence, among the cells we define on a regular grid
+covering each region of interest. We visualise and then analyse the
+distributions of local languages using a set of metrics. The end goal is to
+assess the existing models of language competition.
 
 ## Project Organization
 ```
