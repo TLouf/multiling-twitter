@@ -85,7 +85,7 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
                      mapbox_style='stamen-toner', mapbox_zoom=6,
                      colorscale='Plasma', plotly_renderer='iframe_connected',
                      save_path=None, show=False, latlon_proj='epsg:4326',
-                     alpha=0.8):
+                     alpha=0.8, access_token=None, min_count=1):
     '''
     Plots an interactive Choropleth map with Plotly. The Choropleth data are in
     'cell_plot_df', for each group described in 'grps_dict'.
@@ -102,8 +102,9 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
     cell_plot_df = raw_cell_plot_df.copy()
     start_point = shape_df['geometry'].to_crs(latlon_proj).values[0].centroid
     layout = go.Layout(
-        mapbox_style=mapbox_style, mapbox_zoom=mapbox_zoom,
-        mapbox_center={"lat": start_point.y, "lon": start_point.x},
+        mapbox={'accesstoken': access_token, 'style': mapbox_style,
+                'zoom': mapbox_zoom, 'center': {'lat': start_point.y,
+                                                'lon': start_point.x}},
         margin={"r": 100, "t": 0, "l": 0, "b": 0})
 
     # Get a dictionary corresponding to the geojson (because even though the
@@ -115,10 +116,12 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
         locations=cell_plot_df.index.values,
         hoverinfo='skip',
         colorscale=colorscale,
-        marker_opacity=alpha, marker_line_width=0)
+        marker_opacity=alpha,
+        marker_line_width=0.5)
 
     total_counts = cell_plot_df['total_count'].copy()
-    total_counts.loc[total_counts < 1] = None
+    relevance_mask = total_counts < min_count
+    total_counts.loc[relevance_mask] = None
     log_counts, count_colorbar = config_log_plot(
         total_counts, 1, total_counts.max())
     count_colorbar['title'] = 'Total count'
@@ -147,7 +150,7 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
         choropleth_dict['reversescale'] = True
 
     zmin, zmax = scales.get_global_vmin_vmax(
-        cell_plot_df, metric_dict, grps_dict, min_count=0)
+        cell_plot_df, metric_dict, grps_dict, min_count=min_count)
     og_zmin, og_zmax = zmin, zmax
 
     for i, plot_grp in enumerate(grps_dict):
@@ -164,7 +167,7 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
             colorbar = {}
         colorbar['title'] = grp_dict[metric + '_label']
         colorbar['titleside'] = 'right'
-
+        z.loc[relevance_mask] = None
         data.append(go.Choroplethmapbox(**choropleth_dict,
                                         z=z,
                                         zmin=zmin,
@@ -210,7 +213,6 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
         else:
             fig.show(renderer=plotly_renderer, width=900, height=600,
                      config={'modeBarButtonsToAdd': ['zoomInMapbox', 'zoomOutMapbox']})
-
     return fig
 
 
