@@ -25,7 +25,28 @@ def haversine(lon1, lat1, lon2, lat2):
     return d
 
 
-def create_grid(shape_df, cell_size, xy_proj='epsg:3857', intersect=False):
+def gen_quadrants(left_x, right_x, bot_y, top_y, places_geodf, sub_cells_list,
+                  min_size=1000, max_nr_places=10):
+    mid_x = (left_x + right_x) / 2
+    mid_y = (bot_y + top_y) / 2
+    for quadrant in [(left_x, mid_x, bot_y, mid_y),
+                     (left_x, mid_x, mid_y, top_y),
+                     (mid_x, right_x, bot_y, mid_y),
+                     (mid_x, right_x, mid_y, top_y)]:
+        nr_contained_places = places_geodf.loc[
+            (places_geodf['x_c'] < quadrant[1])
+            & (places_geodf['x_c'] > quadrant[0])
+            & (places_geodf['y_c'] < quadrant[3])
+            & (places_geodf['y_c'] > quadrant[2])].shape[0]
+        if (nr_contained_places > max_nr_places
+                and quadrant[1] - quadrant[0] > 2*min_size):
+            gen_quadrants(*quadrant, places_geodf, sub_cells_list)
+        else:
+            sub_cells_list.append(quadrant)
+
+
+def create_grid(shape_df, cell_size, xy_proj='epsg:3857', intersect=False,
+                places_geodf=None, max_nr_places=None):
     '''
     Creates a square grid over a given shape.
     `shape_df` (GeoDataFrame): single line GeoDataFrame containing the shape on
@@ -35,7 +56,14 @@ def create_grid(shape_df, cell_size, xy_proj='epsg:3857', intersect=False):
     `intersect` (bool): determines whether the function computes
     `cells_in_shape_df`, the intersection of the created grid with the shape of
     the area of interest, so that the grid only covers the shape.
+    If `places_geodf` is given, cells are split in 4 when they countain more
+    than `max_nr_places` places from this data frame.
     '''
+    if places_geodf is not None:
+        places_geodf['x_c'], places_geodf['y_c'] = zip(
+            *places_geodf.geometry.apply(lambda geo: geo.centroid.coords[0]))
+        if max_nr_places is None:
+            max_nr_places = places_geodf.shape[0] // 100
     # We have a one line dataframe, we'll take only the geoseries with the
     # geometry, create a new dataframe out of it with the bounds of this series.
     # Then the values attribute is a one line matrix, so we take the first
@@ -61,11 +89,25 @@ def create_grid(shape_df, cell_size, xy_proj='epsg:3857', intersect=False):
         for j in range(Ny-1):
             bot_y = y_grid_re[j]
             top_y = y_grid_re[j+1]
-            # The Polygon closes itself, so no need to repeat the first point at
-            # the end.
-            cells_list.append(Polygon([
-                (left_x, top_y), (right_x, top_y),
-                (right_x, bot_y), (left_x, bot_y)]))
+            sub_cells_list = [(left_x, right_x, bot_y, top_y)]
+            if places_geodf is not None:
+                nr_contained_places = places_geodf.loc[
+                    (places_geodf['x_c'] < right_x)
+                    & (places_geodf['x_c'] > left_x)
+                    & (places_geodf['y_c'] < top_y)
+                    & (places_geodf['y_c'] > bot_y)].shape[0]
+                if nr_contained_places > max_nr_places:
+                    sub_cells_list = []
+                    gen_quadrants(left_x, right_x, bot_y, top_y, places_geodf,
+                                  sub_cells_list, max_nr_places=max_nr_places,
+                                  min_size=cell_size/10)
+
+            for (sub_left_x, sub_right_x, sub_bot_y, sub_top_y) in sub_cells_list:
+                # The Polygon closes itself, so no need to repeat the first
+                # point at the end.
+                cells_list.append(Polygon([
+                    (sub_left_x, sub_top_y), (sub_right_x, sub_top_y),
+                    (sub_right_x, sub_bot_y), (sub_left_x, sub_bot_y)]))
 
     cells_df = geopd.GeoDataFrame(cells_list, crs=xy_proj, columns=['geometry'])
     cells_df['cell_id'] = cells_df.index
@@ -76,7 +118,7 @@ def create_grid(shape_df, cell_size, xy_proj='epsg:3857', intersect=False):
         cells_in_shape_df.cell_size = cell_size
     else:
         cells_in_shape_df = None
-        
+
     cells_df.cell_size = cell_size
     return cells_df, cells_in_shape_df, Nx-1, Ny-1
 
@@ -158,11 +200,11 @@ def make_places_geodf(raw_places_df, shape_df, latlon_proj='epsg:4326',
     places_df['min_lat'] = places_df['bounding_box'].apply(lambda x: x[0][1])
     places_df['max_lon'] = places_df['bounding_box'].apply(lambda x: x[2][0])
     places_df['max_lat'] = places_df['bounding_box'].apply(lambda x: x[2][1])
-    is_bot_left_in_shape = ((places_df['min_lon'] < shape_max_lon) 
+    is_bot_left_in_shape = ((places_df['min_lon'] < shape_max_lon)
                             & (places_df['min_lon'] > shape_min_lon)
                             & (places_df['min_lat'] < shape_max_lat)
                             & (places_df['min_lat'] > shape_min_lat))
-    is_top_right_in_shape = ((places_df['max_lon'] < shape_max_lon) 
+    is_top_right_in_shape = ((places_df['max_lon'] < shape_max_lon)
                              & (places_df['max_lon'] > shape_min_lon)
                              & (places_df['max_lat'] < shape_max_lat)
                              & (places_df['max_lat'] > shape_min_lat))
@@ -236,7 +278,7 @@ def init_cc(areas_dict, cell_sizes_list, places_files_paths, project_data_dir):
     # We drop the duplicate places (based on their ID)
     places_df = pd.concat(all_raw_places_df).drop_duplicates(subset='id')
     print('reading of places data files is done')
-    
+
     for area, area_dict in regions.items():
         xy_proj = area_dict['xy_proj']
         min_poly_area = area_dict.get('min_poly_area')
@@ -248,7 +290,7 @@ def init_cc(areas_dict, cell_sizes_list, places_files_paths, project_data_dir):
         shape_df = geopd.read_file(shapefile_path)
         shape_df = extract_shape(shape_df, shapefile_dict, xy_proj=xy_proj,
                                  min_area=min_poly_area)
-        
+
         places_geodf, _ = make_places_geodf(places_df, shape_df,
                                             xy_proj=xy_proj)
         print(f'places dataframe for {area} generated')
@@ -259,10 +301,10 @@ def init_cc(areas_dict, cell_sizes_list, places_files_paths, project_data_dir):
                 shape_df, cell_size, xy_proj=xy_proj, intersect=True)
             cells_df_list.append(cells_in_area_df)
         print(f'cells dataframes for {area} generated')
-        
+
         area_dict['shape_df'] = shape_df
         area_dict['places_geodf'] = places_geodf
         area_dict['cells_df_list'] = cells_df_list
         areas_dict[area] = area_dict
-    
-    return areas_dict 
+
+    return areas_dict

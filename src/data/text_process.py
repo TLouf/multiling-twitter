@@ -24,7 +24,7 @@ def lang_detect(tweets_df, text_col='text', min_nr_words=4, min_nr_cjk=4,
     # the string.
     hash_at_pattern = r'(?:^|\B)((@|#)\w+)(?:$|\b)'
     # Match anything containing /t.co/ surrounded by non-whitespace characters
-    # and which is between whitespaces or at the start or end of the string may
+    # and which is between whitespaces or at the start or end of the string. May
     # be better with all http options at the start, here's it's pretty loose.
     url_pattern = r'(?:^|\s)(\S+\/t.co\/\S+)(?:$|\b)'
     regex_filter = re.compile('({})|({})'.format(hash_at_pattern, url_pattern))
