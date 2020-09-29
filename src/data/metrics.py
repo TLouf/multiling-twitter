@@ -1,9 +1,8 @@
-from collections import defaultdict
 from scipy.stats import chisquare
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
-from ortools.linear_solver import pywraplp
+import pyemd
 import src.visualization.helpers as helpers_viz
 import src.utils.geometry as geo
 
@@ -234,73 +233,24 @@ def grid_chisquare(cell_plot_df, obs_col, pred_col, n_samples):
     return chi2_score, chi2_score/n_samples, p_value
 
 
-def earthmover_distance(cell_plot_df, dist1_dict, dist2_dict, d_matrix=None):
+def earthmover_distance(cell_plot_df, dist1_col, dist2_col, d_matrix=None):
     '''
     Computes the EMD between the concentration distributions described by the
     dictionaries `dist1_dict` and `dist2_dict`, and whose data are comprised
     within the columns of `cell_plot_df`. Also returns a norm, defined as the
-    average distance between cells, weighted by the minimum population in each
-    pair.
+    average distance between individuals.
     '''
     if d_matrix is None:
         d_matrix = geo.d_matrix_from_cells(cell_plot_df)
-    solver = pywraplp.Solver('earthmover_distance',
-                             pywraplp.Solver.GLOP_LINEAR_PROGRAMMING)
-    variables = dict()
-    # for each pile in dist1, the constraint that says all the dirt must leave
-    # this pile
-    dirt_leaving_constraints = defaultdict(lambda: 0)
-    # for each hole in dist2, the constraint that says this hole must be filled
-    dirt_filling_constraints = defaultdict(lambda: 0)
-    # The objective is initialized as a minimization.
-    objective = solver.Objective()
-    objective.SetMinimization()
-    n_cells = cell_plot_df.shape[0]
-    for i in range(n_cells):
-        for j in range(n_cells):
-            # We declare the variables of the optimization problem, the flows
-            # from cells i to j, and constrain them to be positive.
-            flow_i_j = solver.NumVar(
-                0, solver.infinity(), 'z_{%s, %s}' % (i, j))
-            variables[(i, j)] = flow_i_j
-            dirt_leaving_constraints[i] += flow_i_j
-            dirt_filling_constraints[j] += flow_i_j
-            # The function to minimize is the sum of flow_i_j times
-            # d_matrix[i,j], so to each variable flow_i_j we set
-            # the corresponding distance as a coefficient.
-            objective.SetCoefficient(flow_i_j, d_matrix[i, j])
+    
+    dist1 = cell_plot_df[dist1_col].values
+    dist2 = cell_plot_df[dist2_col].values
+    # pyemd is a fast and reliable implementation.
+    emd_value = pyemd.emd(dist1, dist2, d_matrix)
 
-    # We add the constraints that sum over j of flow_i_j is equal to
-    # dist1[i]. This is a strict equality here because dist1 and dist2 are
-    # probability distributions (see Levina and Bickel, 2001).
-    dist1 = cell_plot_df[dist1_dict['conc_col']].values
-    dist1 = dist1 / dist1.sum()
-    for i, linear_combination in dirt_leaving_constraints.items():
-        solver.Add(linear_combination == dist1[i])
-
-    dist2 = cell_plot_df[dist2_dict['conc_col']].values
-    dist2 = dist2 / dist2.sum()
-    for j, linear_combination in dirt_filling_constraints.items():
-        solver.Add(linear_combination == dist2[j])
-
-    status = solver.Solve()
-    if status not in [solver.OPTIMAL, solver.FEASIBLE]:
-        raise Exception('Unable to find feasible solution')
-    emd_value = objective.Value()
-
-    norm = 0
-    total_weight = 0
-    for i in range(n_cells):
-        for j in range(i+1, n_cells):
-            weight = min(cell_plot_df['total_conc'].values[i],
-                         cell_plot_df['total_conc'].values[j])
-            total_weight += weight
-            norm += weight * d_matrix[i, j]
-    norm = norm / total_weight
-    grp1_label = dist1_dict['grp_label']
-    grp2_label = dist2_dict['grp_label']
-    print(f'The EMD between the distributions of {grp1_label} and of '
-          f'{grp2_label} is {emd_value/norm}.')
+    # Average distance to other individual
+    norm = np.sum(cell_plot_df['total_conc'].values
+                  * np.sum(d_matrix*cell_plot_df['total_conc'].values, axis=1))
     return emd_value, norm, d_matrix
 
 
