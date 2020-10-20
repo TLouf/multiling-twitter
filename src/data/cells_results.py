@@ -53,6 +53,7 @@ def from_uagg_res(user_agg_res, region_dict, cell_data_path_format,
     region = region_dict['readable']
     cells_df_list = region_dict['cells_df_list']
     places_geodf = region_dict['places_geodf']
+    local_langs = region_dict['local_langs']
     cc = places_geodf.cc
     region_dict['cc'] = cc
     user_level_label = '{}-speaking users'
@@ -61,7 +62,9 @@ def from_uagg_res(user_agg_res, region_dict, cell_data_path_format,
     user_langs_counts = join_and_count.init_counts(['uid', 'cld_lang'])
     user_places_habits = join_and_count.init_counts(['uid', 'place_id',
                                                      'isin_workhour'])
-    # for lang_res, _, place_res in user_agg_res:
+    user_interactions = join_and_count.init_counts(['uid', 'to_uid',
+                                                    'cld_lang'])['count']
+
     for res_dict in user_agg_res:
         lang_res = res_dict['user_langs_counts']
         user_langs_counts = join_and_count.increment_join(user_langs_counts,
@@ -69,14 +72,23 @@ def from_uagg_res(user_agg_res, region_dict, cell_data_path_format,
         place_res = res_dict['user_places_habits']
         user_places_habits = join_and_count.increment_join(user_places_habits,
                                                            place_res)
+        interacts = res_dict['user_interactions']
+        user_interactions = user_interactions.add(interacts, fill_value=0)
 
+    user_interactions = user_interactions.reset_index(level='cld_lang')
+    is_local_lang_contact = user_interactions['cld_lang'].isin(local_langs)
+    user_interactions = user_interactions.loc[is_local_lang_contact]
+    user_interactions_path = cell_data_path_format.format(
+        'user_interactions', cc, region, '', 'csv')
+    user_interactions.to_csv(user_interactions_path, header=True)
     # We first do the language attribution for all users.
     user_langs_agg = uagg.get_lang_grp(
         user_langs_counts, region_dict,
-        lang_relevant_prop=lang_relevant_prop, 
+        lang_relevant_prop=lang_relevant_prop,
         lang_relevant_count=lang_relevant_count, fig_dir=fig_dir)
     users_ling_grp = uagg.get_ling_grp(
-        user_langs_agg, region_dict, lang_relevant_prop=lang_relevant_prop,
+        user_langs_agg, region_dict,
+        lang_relevant_prop=lang_relevant_prop,
         lang_relevant_count=lang_relevant_count, fig_dir=fig_dir)
     LOGGER.info('lang attribution done')
     # Now we iterate over all cell sizes
@@ -85,7 +97,6 @@ def from_uagg_res(user_agg_res, region_dict, cell_data_path_format,
                                                         'isin_workhour'])
         # We first construct user_cells_habits with the corresponding result
         # from user_agg_res.
-        # for _, cell_res, _ in user_agg_res:
         for res_dict in user_agg_res:
             cell_res = res_dict['user_cells_habits_list']
             user_cells_habits = join_and_count.increment_join(
@@ -97,10 +108,15 @@ def from_uagg_res(user_agg_res, region_dict, cell_data_path_format,
             user_cells_habits, user_places_habits,
             place_relevant_th=place_relevant_th,
             cell_relevant_th=cell_relevant_th)
-        
+        user_cell_ratio = places_to_cells.cell_ratio(
+            user_home_cell, user_only_place, cells_df, places_geodf)
+
         cell_size = cells_df.cell_size
-        cell_data_path = cell_data_path_format.format('users', cc, region,
-                                                      cell_size)
+        user_cell_ratio_path = cell_data_path_format.format(
+            'user_cell_ratio', cc, region, cell_size, 'csv')
+        user_cell_ratio.to_csv(user_cell_ratio_path, header=True)
+        cell_data_path = cell_data_path_format.format(
+            'users_cell_data', cc, region, cell_size, 'geojson')
         from_users_area_and_lang(
             cells_df, places_geodf, user_only_place,
             user_home_cell, user_langs_agg, users_ling_grp,
@@ -109,7 +125,7 @@ def from_uagg_res(user_agg_res, region_dict, cell_data_path_format,
 
 def from_scratch(areas_dict, tweets_files_paths, get_df_fun,
                  collect_user_agg_res, user_agg_res, langs_agg_dict,
-                 cell_data_path_format,
+                 cell_data_path_format, null_reply_id,
                  lang_relevant_prop=0.1, lang_relevant_count=5,
                  cell_relevant_th=0.1, place_relevant_th=0.1, fig_dir=None,
                  cpus=8):
@@ -121,14 +137,15 @@ def from_scratch(areas_dict, tweets_files_paths, get_df_fun,
     for i, df_access in enumerate(
             data_access.yield_tweets_access(tweets_files_paths)):
         LOGGER.info(f'starting on chunk {i}')
-        args = (df_access, get_df_fun, areas_dict, langs_agg_dict)
+        args = (df_access, get_df_fun, areas_dict, langs_agg_dict,
+                null_reply_id)
         kwargs = {'min_nr_words': 4, 'cld': 'pycld2'}
         pool.apply_async(
-            uagg.get_lang_loc_habits, args, kwargs, callback=collect_user_agg_res,
-            error_callback=print)
+            uagg.get_lang_loc_habits, args, kwargs,
+            callback=collect_user_agg_res, error_callback=print)
     pool.close()
     pool.join()
-    
+
     for region, region_dict in areas_dict['regions'].items():
         region_user_agg_res = [res_dict[region] for res_dict in user_agg_res]
         from_uagg_res(

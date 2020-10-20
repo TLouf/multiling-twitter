@@ -1,5 +1,6 @@
 import pandas as pd
 import geopandas as geopd
+import src.data.access as data_access
 import src.data.process as data_process
 import src.visualization.helpers as helpers_viz
 
@@ -22,7 +23,7 @@ def users_months(raw_tweets_df, ref_year=2015):
 
 
 def get_lang_loc_habits(df_access, get_df_fun, areas_dict, langs_agg_dict,
-                        text_col='text', min_nr_words=4,
+                        null_reply_id, text_col='text', min_nr_words=4,
                         cld='pycld2', latlon_proj='epsg:4326'):
     '''
     Given a dataframe access and `get_df_fun` (see
@@ -35,6 +36,8 @@ def get_lang_loc_habits(df_access, get_df_fun, areas_dict, langs_agg_dict,
     `data_process.prep_resid_attr` about the definition of work hours).
     '''
     return_dict = {}
+    cols = ['text', 'id', 'lang', 'place_id', 'coordinates', 'created_at',
+            'uid', 'source', 'in_reply_to_status_id', 'in_reply_to_user_id']
     raw_tweets_df = get_df_fun(df_access)
     for region, region_dict in areas_dict['regions'].items():
         cells_df_list = region_dict['cells_df_list']
@@ -42,17 +45,31 @@ def get_lang_loc_habits(df_access, get_df_fun, areas_dict, langs_agg_dict,
         valid_uids = region_dict['valid_uids']
         cc_timezone = region_dict['timezone']
         max_place_area = region_dict.get('max_place_area') or 1e9
-
+        
+        tweets_df = data_access.filter_df(
+            raw_tweets_df, cols=cols, dfs_to_join=[places_geodf, valid_uids])
+        is_reply_mask = tweets_df['in_reply_to_status_id'] != null_reply_id
+        tweets_df.loc[~is_reply_mask, 'in_reply_to_status_id'] = None
+        tweets_df.loc[~is_reply_mask, 'in_reply_to_user_id'] = None
         tweets_df = data_process.process(
-            raw_tweets_df, valid_uids, places_geodf, langs_agg_dict,
+            tweets_df, places_geodf, langs_agg_dict,
             min_nr_words=min_nr_words, cld=cld, text_col=text_col, 
             latlon_proj=latlon_proj)
 
+        is_to_valid_uid = tweets_df['in_reply_to_user_id'].isin(valid_uids.index)
+        # We get rid of self replies, which are threads, not interactions
+        is_to_other = tweets_df['in_reply_to_user_id'] != tweets_df['uid']
+        replies_cols = ['uid', 'in_reply_to_user_id', 'cld_lang']
+        replies_df = (tweets_df.loc[is_to_valid_uid & is_to_other, replies_cols]
+                               .copy())
+        replies_df = replies_df.rename(columns={'in_reply_to_user_id': 'to_uid'})
+        user_interactions = (replies_df.groupby(['uid', 'to_uid', 'cld_lang'])
+                                       .size()
+                                       .rename('count'))
         groupby_cols = ['uid', 'cld_lang']
-        user_langs_counts = (tweets_df
-                                .assign(**{'count': 0})
-                                .groupby(groupby_cols)['count']
-                                .count())
+        user_langs_counts = (tweets_df.assign(**{'count': 0})
+                                      .groupby(groupby_cols)['count']
+                                      .count())
 
         relevant_area_mask = tweets_df['area'] < max_place_area
         tweets_df = tweets_df.loc[relevant_area_mask]
@@ -60,10 +77,10 @@ def get_lang_loc_habits(df_access, get_df_fun, areas_dict, langs_agg_dict,
         has_gps = tweets_df['area'] == 0
         tweets_places_df = tweets_df.loc[~has_gps]
         groupby_cols = ['uid', 'place_id', 'isin_workhour']
-        user_places_habits = (tweets_places_df
-                                .assign(**{'count': 0})
-                                .groupby(groupby_cols)['count']
-                                .count())
+        user_places_habits = (
+            tweets_places_df.assign(**{'count': 0})
+                            .groupby(groupby_cols)['count']
+                            .count())
 
         groupby_cols = ['uid', 'cell_id', 'isin_workhour']
         user_cells_habits_list = []
@@ -71,13 +88,14 @@ def get_lang_loc_habits(df_access, get_df_fun, areas_dict, langs_agg_dict,
             tweets_cells_df = geopd.sjoin(
                 tweets_df.loc[has_gps], cells_in_area_df,
                 op='within', rsuffix='cell', how='inner')
-            user_cells_habits = (tweets_cells_df
-                                    .assign(**{'count': 0})
-                                    .groupby(groupby_cols)['count']
-                                    .count())
+            user_cells_habits = (
+                tweets_cells_df.assign(**{'count': 0})
+                               .groupby(groupby_cols)['count']
+                               .count())
             user_cells_habits_list.append(user_cells_habits)
             
         return_dict[region] = {}
+        return_dict[region]['user_interactions'] = user_interactions
         return_dict[region]['user_langs_counts'] = user_langs_counts
         return_dict[region]['user_cells_habits_list'] = user_cells_habits_list
         return_dict[region]['user_places_habits'] = user_places_habits
@@ -224,14 +242,20 @@ def get_residence(user_cells_habits, user_places_habits, place_relevant_th=0.1,
                                     .last())
 
     users_with_cell = user_home_cell.index.values
-    user_home_place = get_home_place(user_places_habits,
-                                     place_id_col='place_id',
-                                     relevant_th=place_relevant_th)
-    user_only_place = user_home_place.reset_index()
-    user_only_place = (
-        user_only_place.loc[~user_only_place['uid'].isin(users_with_cell)]
-                       .set_index('uid')
-                       .loc[:, 'place_id'])
+    # Sometimes places data only contains POIs, so only points, and thus
+    # user_places_habits will be empty
+    if user_places_habits.shape[0] > 0:
+        user_home_place = get_home_place(user_places_habits,
+                                         place_id_col='place_id',
+                                         relevant_th=place_relevant_th)
+        user_only_place = user_home_place.reset_index()
+        user_only_place = (
+            user_only_place.loc[~user_only_place['uid'].isin(users_with_cell)]
+                           .set_index('uid')
+                           .loc[:, 'place_id'])
+    else:
+        uid_index = pd.Index([], name='uid')
+        user_only_place = pd.Series([], index=uid_index, name='place_id')
     return user_home_cell, user_only_place
 
 

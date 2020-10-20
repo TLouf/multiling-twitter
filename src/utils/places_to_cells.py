@@ -1,11 +1,12 @@
 import pycld2
+import pandas as pd
 import geopandas as geopd
 import src.data.user_agg as uagg
 
 LANGS_DICT = dict([(lang[1], lang[0].lower().capitalize())
                    for lang in pycld2.LANGUAGES])
 
-def get_intersect(cells_df, places_geodf, places_counts):
+def get_intersect(cells_df, places_counts_geodf):
     '''
     Get the area of the intersection between the cells in cells_df and the
     places in places_geodf.
@@ -13,11 +14,12 @@ def get_intersect(cells_df, places_geodf, places_counts):
     # We filter out places with a total_count == 0 (ie without residents) via
     # the inner join, so that we don't compute the overlay unnecessarily on
     # these places.
-    places_counts_geodf = places_geodf.join(places_counts, how='inner')
     places_counts_geodf['place_id'] = places_counts_geodf.index
     cells_in_places = geopd.overlay(
         places_counts_geodf, cells_df, how='intersection')
     cells_in_places['area_intersect'] = cells_in_places.geometry.area
+    cells_in_places['ratio'] = (cells_in_places['area_intersect']
+                                / cells_in_places['area'])
     return cells_in_places
 
 
@@ -36,7 +38,8 @@ def get_counts(places_counts, places_langs_counts, places_geodf,
     # place), so we duplicate cells_df.index into the 'cell_id' column, to be
     # able to make the groupby in intersect_to_cells
     cells_df['cell_id'] = cells_df.index
-    cells_in_places = get_intersect(cells_df, places_geodf, places_counts)
+    places_counts_geodf = places_geodf.join(places_counts, how='inner')
+    cells_in_places = get_intersect(cells_df, places_counts_geodf)
     cell_plot_df = cells_df.loc[:, ['geometry']]
     cell_plot_df = intersect_to_cells(
         cells_in_places, cell_plot_df, places_counts.columns)
@@ -70,8 +73,8 @@ def intersect_to_cells(cells_in_places, cells_df, count_cols):
     `cells_in_places`. Then the resulting scaled counts are summed by cell.
     '''
     for col in count_cols:
-        cells_in_places[col] = cells_in_places[col] * (
-            cells_in_places['area_intersect'] / cells_in_places['area'])
+        cells_in_places[col] = (
+            cells_in_places[col] * cells_in_places['ratio'])
         cells_counts = cells_in_places.groupby('cell_id')[col].sum()
         cells_df = cells_df.join(cells_counts, how='left')
     return cells_df
@@ -145,7 +148,37 @@ def home_places_to_cells(cell_plot_df, user_only_place, places_geodf,
     places_counts = get_all_area_counts(
         user_only_place, user_langs_agg, users_ling_grp, plot_langs_dict,
         plot_lings_dict)
-    cells_in_places = get_intersect(cell_plot_df, places_geodf, places_counts)
+    places_counts_geodf = places_geodf.join(places_counts, how='inner')
+    cells_in_places = get_intersect(cell_plot_df, places_counts_geodf)
     count_cols = places_counts.columns
     cell_plot_df = intersect_to_cells(cells_in_places, cell_plot_df, count_cols)
     return cell_plot_df
+
+
+def cell_ratio(user_home_cell, user_only_place, cells_df, places_geodf):
+    '''
+    From `user_home_cell` containing the cell of residence of all users for
+    which the cell attribution was possible, append the attribution to one or
+    more cells corresponding to the place of residence of the remaining users,
+    present in `user_only_place`. The geometries of the cells and places are
+    given in `cells_df` and `places_geodf` in order to calculate the ratio of
+    the area of the interesection between a place and each interesected cell.
+    Thus users are attributed proportionally tothis ratio to each intersected
+    cell.
+    '''
+    places_counts = (user_only_place.reset_index()
+                                    .groupby('place_id')
+                                    .size()
+                                    .rename('count'))
+    places_counts_geodf = places_geodf.join(places_counts, how='inner')
+    cells_in_places = get_intersect(cells_df, places_counts_geodf)
+    cells_in_places = cells_in_places[['place_id', 'cell_id', 'ratio']]
+    user_cell_ratio = (user_only_place.reset_index()
+                                      .merge(cells_in_places, on='place_id')
+                                      .set_index(['uid', 'cell_id'])[['ratio']])
+    new_index = [user_home_cell.index, 'cell_id']
+    new_user_home_cell = (user_home_cell.to_frame()
+                                        .assign(ratio=1)
+                                        .set_index(new_index))
+    new_user_home_cell = pd.concat([new_user_home_cell, user_cell_ratio])
+    return new_user_home_cell
