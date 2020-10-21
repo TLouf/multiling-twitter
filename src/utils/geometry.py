@@ -133,8 +133,10 @@ def extract_shape(shape_df, shapefile_dict,
     the shape (if it's comprised of more than one), and then simplifying the
     contours.
     '''
-    shape_df = shape_df.loc[
-        shape_df[shapefile_dict['col']].str.startswith(shapefile_dict['val'])]
+    col = shapefile_dict['col']
+    if col in shape_df.columns:
+        shape_df = shape_df.loc[
+            shape_df[col].str.startswith(shapefile_dict['val'])]
     shape_df = shape_df.to_crs(xy_proj)
     shapely_geo = shape_df.geometry.iloc[0]
 

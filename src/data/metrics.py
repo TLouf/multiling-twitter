@@ -245,7 +245,10 @@ def earthmover_distance(cell_plot_df, dist1_col, dist2_col, d_matrix=None):
     
     dist1 = cell_plot_df[dist1_col].values
     dist2 = cell_plot_df[dist2_col].values
-    # pyemd is a fast and reliable implementation.
+    # pyemd is a fast and reliable implementation. However it doesn't provide
+    # the EMD itself but only the mnimised work, one has to divide by the sum
+    # of all flows (given by `pyemd.emd_with_flow`) to get the EMD. Here we
+    # don't need to do it as it's applied to well defined distributions.
     emd_value = pyemd.emd(dist1, dist2, d_matrix)
 
     # Average distance to other individual
