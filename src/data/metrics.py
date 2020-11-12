@@ -265,7 +265,7 @@ def all_grps_metric(metric_dict, cell_plot_df, grps_dict, **scale_fun_kwargs):
     '''
     metric_readable = metric_dict['readable']
     scale_fun = metric_dict['scale_fun']
-    sym_about = metric_dict.get('sym_about') or 0
+    sym_about = metric_dict.get('sym_about', 0)
     N = 0
     for grp, grp_dict in grps_dict.items():
         count_col = grp_dict['count_col']
@@ -310,7 +310,7 @@ def all_cells_metric(metric_dict, cell_plot_df):
     '''
     metric_readable = metric_dict['readable']
     metric_col = metric_dict['name']
-    sym_about = metric_dict.get('sym_about') or 0
+    sym_about = metric_dict.get('sym_about', 0)
     total_count_col = metric_dict['total_count_col']
     N = cell_plot_df[total_count_col].sum()
     N_cell = cell_plot_df[total_count_col]
@@ -318,3 +318,16 @@ def all_cells_metric(metric_dict, cell_plot_df):
     global_metric = cell_metric.sum()
     print(f'The {metric_readable} averaged over all cells is {global_metric}')
     return global_metric
+
+
+def lang_counts_from_ling(cell_plot_df, plot_langs_dict, plot_lings_dict):
+    new_cell_df = cell_plot_df.copy()
+    for lang in plot_langs_dict:
+        new_cell_df['count_'+lang] = 0
+    for ling, ling_dict in plot_lings_dict.items():
+        ling_count_col = ling_dict['count_col']
+        langs = ling.split('_')[-1]
+        langs = [langs[i*2:(i+1)*2] for i in range(len(langs) // 2)]
+        for lang in langs:
+            new_cell_df['count_'+lang] += new_cell_df[ling_count_col]
+    return new_cell_df

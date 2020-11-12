@@ -44,7 +44,7 @@ def get_lang_loc_habits(df_access, get_df_fun, areas_dict, langs_agg_dict,
         places_geodf = region_dict['places_geodf']
         valid_uids = region_dict['valid_uids']
         cc_timezone = region_dict['timezone']
-        max_place_area = region_dict.get('max_place_area') or 1e9
+        max_place_area = region_dict.get('max_place_area', 1e9)
         
         tweets_df = data_access.filter_df(
             raw_tweets_df, cols=cols, dfs_to_join=[places_geodf, valid_uids])
