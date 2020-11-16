@@ -1,8 +1,10 @@
+import copy
+import IPython.display
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
+import matplotlib.cm as cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import descartes
-import IPython.display
 import plotly.graph_objects as go
 import plotly.offline
 import numpy as np
@@ -10,13 +12,19 @@ import src.utils.scales as scales
 
 def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
               title=None, log_scale=False, vmin=None, vmax=None, xy_proj=None,
-              cbar_label=None, null_color='None', **plot_kwargs):
+              cbar_label=None, null_color='k', figsize=None,
+              borderwidth=None, cbar_lw=None, ax=None, fig=None,
+              annotation=None, show_axes=False, **kwargs):
     '''
     Plots the contour of a shape, and on top of it a grid whose cells are
     colored according to the value of a metric for each cell, which are the
-    values in the column 'metric_col' of 'plot_df'.
+    values in the column 'metric_col' of 'plot_df'. The figsize provided should
+    have the exact wanted value in either the horizontal or vertical direction,
+    and one too large in the other one. This function will crop all padding
+    in the extra large direction.
     '''
-    fig, ax = plt.subplots(1, figsize=(10, 6))
+    if ax is None:
+        fig, ax = plt.subplots(1, figsize=figsize)
     if vmax is None:
         vmax = plot_df[metric_col].max()
     if log_scale:
@@ -33,7 +41,11 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
         ylabel = 'position (km)'
         plot_df = plot_df.to_crs(xy_proj)
         area_df = area_df.to_crs(xy_proj)
-        area_df_bounds = area_df.geometry.iloc[0].bounds
+        area_df_bounds = list(area_df.geometry.iloc[0].bounds)
+        for i in range(area_df.shape[0]-1):
+            new_bounds = area_df.geometry.iloc[i].bounds
+            area_df_bounds[0] = min(area_df_bounds[0], new_bounds[0])
+            area_df_bounds[1] = min(area_df_bounds[1], new_bounds[1])
         # We translate the whole geometries so that the origin (x,y) = (0,0) is
         # located at the bottom left corner of the shape's bounding box.
         x_off = -area_df_bounds[0]
@@ -44,23 +56,22 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
         xlabel = 'longitude (°)'
         ylabel = 'latitude (°)'
     # The order here is important, the area's boundaries will be drawn on top
-    # of the choropleth, and the cells with null values will be in null_color
+    # of the choropleth, and the cells with null values will be in null_color.
     area_df.plot(ax=ax, color=null_color, edgecolor='none')
-    plot_df.plot(column=metric_col, ax=ax, norm=norm, **plot_kwargs)
-    area_df.plot(ax=ax, color='none', edgecolor='black')
+    plot_df.plot(column=metric_col, ax=ax, norm=norm, **kwargs['plot'])
+    area_df.plot(ax=ax, color='none', edgecolor='black', linewidth=borderwidth)
 
-    if xy_proj:
-        xticks_km = ax.get_xticks() / 1000
-        ax.set_xticklabels([f'{t:.0f}' for t in xticks_km])
-        yticks_km = ax.get_yticks() / 1000
-        ax.set_yticklabels([f'{t:.0f}' for t in yticks_km])
-
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
     ax.set_title(title)
+    if show_axes:
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+    else:
+        ax.set_axis_off()
+    
     if cbar_label:
+        cmap = copy.copy(cm.get_cmap(kwargs['plot']['cmap']))
         # Create colorbar as a legend
-        sm = plt.cm.ScalarMappable(cmap=plot_kwargs.get('cmap'), norm=norm)
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         # Bad values, such as a null or negative value for a log scale, are
         # shown in the color set below:
         sm.cmap.set_bad('grey')
@@ -70,15 +81,42 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
         divider = make_axes_locatable(ax)
         # Create an axes on the right side of ax. The width of cax will be 5%
         # of ax and the padding between cax and ax will be fixed at 0.1 inch.
-        cax = divider.append_axes("right", size="5%", pad=0.1)
+        cax = divider.append_axes('right', size='5%', pad=0.1)
         cbar = fig.colorbar(sm, cax=cax, label=cbar_label)
+        cbar.solids.set_edgecolor('face')
+        cbar.outline.set_lw(cbar_lw)
+        plt.draw()
+        yticks = []
+        cbarytks = cbar.ax.get_yticklines()
+        # Let's hide the top and bottom most ticks of the colorbar, so that if
+        # we set cbar_lw=0, we don't see these, which look weird.
+        for i in range(len(cbarytks) // 2):
+            y_tick = cbarytks[2*i+1].get_ydata()
+            yticks.append(y_tick[0])
+            if y_tick[0] in (vmin, vmax) and isinstance(y_tick, tuple):
+                cbarytks[2*i+1].set_visible(False)
+                cbarytks[2*i].set_visible(False)
+        cbar.ax.tick_params(direction='in', width=0.2, length=2,
+                            labelsize=plt.rcParams['font.size']-1, pad=1)
+        # For some reason the true yticks obtained from get_ticks don't
+        # correspond to the ones you get from get_yticklines and get_ydata, so
+        # have to force them to the same values to avoid hiding the wrong ticks.
+        cbar.set_ticks(yticks)
     
+    # Setting the tight layout will make the subplots fit in to the figure area.
+    fig.set_tight_layout(True)
+    ax.annotate(annotation, (0, 1), xycoords='axes fraction',
+                **kwargs.get('annotate', {}))
     if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
+        # However in this case we also need to set bbox_inches to tight because
+        # the x/y axes aspect ratio is fixed. So if for instance the figure's
+        # x/y ratio is much lower than the x/y aspect ratio of the ax, there
+        # would be a lot of vertical padding, which can be removed with
+        # bbox_inches='tight'.
+        fig.savefig(save_path, bbox_inches='tight')
     if show:
-        plt.show()
-    plt.close()
-    return ax
+        fig.show()
+    return fig, ax
 
 
 def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
