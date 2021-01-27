@@ -1,12 +1,9 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1.inset_locator import (
-    inset_axes, Bbox, BboxConnector, BboxPatch, TransformedBbox)
-from adjustText import adjust_text
 import src.utils.scales as scales
 import src.visualization.grid_viz as grid_viz
-
+from adjustText import adjust_text
 
 def top_lang_speakers(user_langs_agg, area_dict, lang_relevant_count,
                       lang_relevant_prop, fig_dir=None, show=False):
@@ -183,47 +180,6 @@ def metric_grid(cell_plot_df, metric_dict, shape_df, grps_dict,
             save_path=save_path, **plot_kwargs, **grp_plot_grid_kwargs)
 
 
-def time_evol_ling(ling_props_dict, x_data, idx_data_to_plot=None,
-                   idx_ling_to_plot=None, figsize=None, bottom_ylim=0,
-                   fig_save_path=None, show=True, color_cycle=None):
-    '''
-    Plot the time evolution of the proportions of each ling group whose order
-    in `ling_props_dict` is contained in `idx_ling_to_plot`. The times are given
-    by `x_data`, and the indices of the selected data points are in
-    `idx_ling_to_plot`.
-    '''
-    fig, ax = plt.subplots(1, figsize=figsize)
-    ling_labels = list(ling_props_dict.keys())
-    if idx_data_to_plot is None:
-        idx_data_to_plot = np.arange(0, len(ling_props_dict[ling_labels[0]]))
-    if idx_ling_to_plot is None:
-        idx_ling_to_plot = range(len(ling_labels))
-    if color_cycle is None:
-        # This selects the default color cycle.
-        color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
-
-    x_plot = x_data[idx_data_to_plot]
-    for i in idx_ling_to_plot:
-        ling_label = ling_labels[i]
-        y_plot = np.array(ling_props_dict[ling_label])[idx_data_to_plot]
-        # By using the ith element of the color_cycle, we ensure that if we plot
-        # multiple graphs, a given language will have a consistent colour.
-        ax.scatter(x_plot, y_plot, label=ling_label, c=color_cycle[i])
-
-    if len(ling_props_dict) > 1:
-        ax.set_ylim(bottom=bottom_ylim)
-
-    ax.legend()
-    ax.set_xlabel('t')
-    ax.set_ylabel('proportion')
-    fig.set_tight_layout(True)
-    if fig_save_path:
-        fig.savefig(fig_save_path)
-    if show:
-        fig.show()
-    return ax
-
-
 def axis_config(ax_dict, config, min_count=0):
     '''
     Convenience function to fill in a dictionary `ax_dict` of the kwargs to pass
@@ -260,98 +216,6 @@ def axis_config(ax_dict, config, min_count=0):
     return ax_dict
 
 
-def scatter_inset(x_data, ling_props_dict, bbox_to_anchor, inset_interval,
-                  idx_grp_inset, save_path=None, show=True, figsize=None,
-                  ax=None, fig=None, color_cycle=None, top_ylim=None,
-                  inset_left=True):
-    '''
-    Makes a scatter plot of the proportions for each group contained in
-    `ling_props_dict` over the times `x_data`, and adds an inset zooming over
-    the time interval `inset_interval` of the `idx_grp_inset`-th group. The
-    inset is placed within `bbox_to_anchor`.
-    '''
-    if ax is None:
-        fig, ax = plt.subplots(1, figsize=figsize)
-    if color_cycle is None:
-        color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
-
-    ling_labels = list(ling_props_dict.keys())
-    len_data = len(ling_props_dict[ling_labels[0]])
-    idx_data_to_plot = np.arange(0, len_data)
-    idx_ling_to_plot = range(len(ling_labels))
-    x_plot = x_data[idx_data_to_plot]
-    for i in idx_ling_to_plot:
-        ling_label = ling_labels[i]
-        y_plot = np.array(ling_props_dict[ling_label])[idx_data_to_plot]
-        # We plot every step point fixing the maximum number of points to 200,
-        # to avoid to have a pdf figure with long loading time.
-        step = len_data // 200
-        ax.scatter(x_plot[::step], y_plot[::step], label=ling_label,
-                   c=color_cycle[i], s=6)
-
-    ax.set_xlabel('t')
-    ax.set_ylabel('global proportion')
-
-    y_plot = np.array(ling_props_dict[ling_labels[idx_grp_inset]])[idx_data_to_plot]
-    x1, x2 = inset_interval
-    y1 = np.min(y_plot[x1:x2])
-    y2 = np.max(y_plot[x1:x2])
-    # divider = make_axes_locatable(ax)
-    # cax = divider.append_axes('right', size='30%', pad=0.1)
-    # cax.set_axis_off()
-
-    # Place the inset in the Bbox specified in Axes coordinates (from 0 to 1 in
-    # ax's size).
-    axins = inset_axes(ax, width='100%', height='100%',
-                       bbox_to_anchor=bbox_to_anchor,
-                       bbox_transform=ax.transAxes)
-    axins.scatter(x_plot[::5], y_plot[::5],
-                  label=ling_label, c=color_cycle[idx_grp_inset], s=1)
-
-    # Inset zooms on specific data interval = (x1, x2)
-    axins.set_xlim(x1, x2)
-    axins.set_ylim(y1, y2)
-    axins.set_xticklabels([])
-    ax.set_ylim(bottom=0, top=top_ylim)
-    # Draw a bbox of the region of the inset axes in the parent axes and
-    # connecting lines between the bbox and the inset axes area. As this is a
-    # scatter plot and points have a size, it is necessary to enlarge the bbox
-    # vertically by an offset to make it visible
-    offset = 0.01
-    rect = Bbox([[x1, y1-offset], [x2, y2+offset]])
-    # A TransformedBbox is initiated with these data coordinates translated to
-    # the display coordinate system. This class of Bbox adapts automatically to
-    # any potential change made under the hood by plt later on, so that it
-    # stays over the specified data range.
-    rect = TransformedBbox(rect, ax.transData)
-    pp = BboxPatch(rect, fill=False, fc="none", ec="0.5")
-    ax.add_patch(pp)
-
-    # If the inset is on the left of the bbox, take the bottom left and top
-    # right corners to draw the connectors.
-    if inset_left:
-        loc11 = 1
-        loc12 = 3
-    # Else, take the top left and bottom right corners.
-    else:
-        loc11 = 2
-        loc12 = 4
-    p1 = BboxConnector(axins.bbox, rect, loc1=loc11, fc="none", ec="0.5")
-    axins.add_patch(p1)
-    p1.set_clip_on(False)
-    p2 = BboxConnector(axins.bbox, rect, loc1=loc12, fc="none", ec="0.5")
-    axins.add_patch(p2)
-    p2.set_clip_on(False)
-
-    ax.legend()
-    fig.set_tight_layout(True)
-    if save_path:
-        fig.savefig(save_path, bbox_inches='tight')
-    if show:
-        fig.show()
-    return fig, ax
-
-
 def scatter_labelled(x_plot, y_plot, labels, xlabel=None, ylabel=None,
                      cmap='jet', figsize=None, annot=True, lgd=None,
                      save_path=None, show=True, **kwargs):
@@ -378,19 +242,22 @@ def scatter_labelled(x_plot, y_plot, labels, xlabel=None, ylabel=None,
             'arrowprops': {'arrowstyle': '-', 'color': 'gray', 'lw': 0.1}}
         adj_text_kw.update(kwargs.get('adj_text', {}))
         # Iteratively find a better placement for annotations, avoiding overlap.
-        adjust_text(texts, ax=ax, **adj_text_kw)
+        adjust_text(texts, x=x_plot, y=y_plot, ax=ax, **adj_text_kw)
+    bbox_extra_artists = ()
     if lgd:
         # Place a legend outside the graph, in the top left corner.
         lgd_kwargs = {'bbox_to_anchor': (1.05, 1), 'loc': 2,
                       'borderaxespad': 0, 'ncol': 1}
         lgd_kwargs.update(kwargs.get('lgd', {}))
         lgd = ax.legend(**lgd_kwargs)
+        bbox_extra_artists = (lgd,)
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     fig.set_tight_layout(True)
     if save_path:
-        fig.savefig(save_path, bbox_extra_artists=(lgd,), bbox_inches='tight')
+        fig.savefig(save_path, bbox_extra_artists=bbox_extra_artists,
+                    bbox_inches='tight')
     if show:
         fig.show()
     return fig, ax
