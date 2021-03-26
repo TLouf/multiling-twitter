@@ -11,9 +11,6 @@ def get_intersect(cells_df, places_counts_geodf):
     Get the area of the intersection between the cells in cells_df and the
     places in places_geodf.
     '''
-    # We filter out places with a total_count == 0 (ie without residents) via
-    # the inner join, so that we don't compute the overlay unnecessarily on
-    # these places.
     places_counts_geodf['place_id'] = places_counts_geodf.index
     cells_in_places = geopd.overlay(
         places_counts_geodf, cells_df, how='intersection')
