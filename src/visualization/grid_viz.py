@@ -10,12 +10,14 @@ import plotly.colors
 import plotly.offline
 import numpy as np
 import src.utils.scales as scales
+import src.utils.geometry as geo
 
 def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
               title=None, log_scale=False, vmin=None, vmax=None, xy_proj=None,
               cbar_label=None, null_color='k', figsize=None,
               borderwidth=None, cbar_lw=None, ax=None, fig=None, cax=None,
-              annotation=None, show_axes=False, tight_layout=True, **kwargs):
+              cbar_ticks=None, annotation=None, show_axes=False,
+              tight_layout=True, **kwargs):
     '''
     Plots the contour of a shape, and on top of it a grid whose cells are
     colored according to the value of a metric for each cell, which are the
@@ -85,7 +87,7 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
             # 5% of ax and the padding between cax and ax will be fixed at 0.1
             # inch.
             cax = divider.append_axes('right', size='5%', pad=0.1)
-        cbar = fig.colorbar(sm, cax=cax, label=cbar_label)
+        cbar = fig.colorbar(sm, cax=cax, label=cbar_label, ticks=cbar_ticks)
         cbar.solids.set_edgecolor('face')
         cbar.outline.set_lw(cbar_lw)
         cbar = hide_cbar_ext_ticks(cbar, vmin, vmax)
@@ -300,3 +302,40 @@ def hide_cbar_ext_ticks(cbar, vmin, vmax):
     # have to force them to the same values to avoid hiding the wrong ticks.
     cbar.set_ticks(yticks)
     return cbar
+
+
+def get_width_ratios(shape_list, ratio_lgd=0.05, latlon_proj='epsg:4326'):
+    '''
+    Get the width ratios to pass to a GridSpec so that maps of different regions
+    on a same line all fit the full provided height.
+    '''
+    width_ratios = ratio_lgd * np.ones(len(shape_list) + 1)
+    for i, geodf in enumerate(shape_list):
+        min_lon, min_lat, max_lon, max_lat = (
+            geodf.geometry.to_crs(latlon_proj).total_bounds)
+        # For a given longitude extent, the width is maximum the closer to the
+        # equator, so the closer the latitude is to 0.
+        eq_crossed = min_lat * max_lat < 0
+        lat_max_width = min(abs(min_lat), abs(max_lat)) * (1 - int(eq_crossed))
+        width = geo.haversine(min_lon, lat_max_width, max_lon, lat_max_width)
+        height = geo.haversine(min_lon, min_lat, min_lon, max_lat)
+        width_ratios[i] = width / height
+    width_ratios[:-1] *= (1 - ratio_lgd) / width_ratios[:-1].sum()
+    return width_ratios
+
+
+class MidpointNormalize(colors.Normalize):
+    """
+    Normalise the colorbar so that diverging bars work there way either side from a prescribed midpoint value)
+
+    e.g. im=ax1.imshow(array, norm=MidpointNormalize(midpoint=0.,vmin=-100, vmax=100))
+    """
+    def __init__(self, vmin=None, vmax=None, midpoint=None, clip=False):
+        self.midpoint = midpoint
+        colors.Normalize.__init__(self, vmin, vmax, clip)
+
+    def __call__(self, value, clip=None):
+        # I'm ignoring masked values and all kinds of edge cases to make a
+        # simple example...
+        x, y = [self.vmin, self.midpoint, self.vmax], [0, 0.5, 1]
+        return np.ma.masked_array(np.interp(value, x, y), np.isnan(value))

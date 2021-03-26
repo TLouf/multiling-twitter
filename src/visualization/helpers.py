@@ -218,21 +218,24 @@ def axis_config(ax_dict, config, min_count=0):
 
 def scatter_labelled(x_plot, y_plot, labels, xlabel=None, ylabel=None,
                      cmap='jet', figsize=None, annot=True, lgd=None,
-                     save_path=None, show=True, **kwargs):
+                     save_path=None, show=True, fig=None, ax=None,
+                     tight_layout=True, pts_s=6, **kwargs):
     '''
     Scatter plot using the data (`x_plot`, `y_plot`) and labels `labels` for
     each point. These labels are either assigned to a color in a legend, or
     directly added as annotations to the data points. The annotations are
     placed with `adjust_text` to avoid overlapping.
     '''
+    if ax is None:
+        fig, ax = plt.subplots(1, figsize=figsize)
     n_pts = len(labels)
     # Sort x_plot, y_plot and labels by ascending x_plot values.
     sorted_lists = sorted(zip(x_plot, y_plot, labels), key=lambda t: t[0])
     x_plot, y_plot, labels = zip(*sorted_lists)
     colors = plt.cm.get_cmap(cmap, n_pts)
-    fig, ax = plt.subplots(1, figsize=figsize)
+
     for i, lab in enumerate(labels):
-        ax.scatter(x_plot[i], y_plot[i], label=lab, c=(colors(i),), s=6)
+        ax.scatter(x_plot[i], y_plot[i], label=lab, c=(colors(i),), s=pts_s)
 
     if annot:
         # Add annotations to each data point, placed on the point directly.
@@ -254,7 +257,7 @@ def scatter_labelled(x_plot, y_plot, labels, xlabel=None, ylabel=None,
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    fig.set_tight_layout(True)
+    fig.set_tight_layout(tight_layout)
     if save_path:
         fig.savefig(save_path, bbox_extra_artists=bbox_extra_artists,
                     bbox_inches='tight')

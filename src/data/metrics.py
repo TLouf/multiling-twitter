@@ -81,13 +81,15 @@ def calc_by_cell(cell_plot_df, grps_dict, cell_size=None):
     Adds columns to cell_plot_df with multiple metrics of interest, for every
     group described in grps_dict.
     '''
+    is_exclusive = False
     total_nr_users = cell_plot_df['total_count'].sum()
+    local_sum = cell_plot_df['local_count'].sum()
     cell_plot_df['total_conc'] = cell_plot_df['total_count'] / total_nr_users
-    Hp_col = 'Hp'
-    cell_plot_df[Hp_col] = 0
+    cell_plot_df['Hp'] = 0
+    cell_plot_df['KL_props'] = 0
     if cell_size is None:
         cell_size = (cell_plot_df.area)**0.5
-
+    
     for grp, grp_dict in grps_dict.items():
         count_col = grp_dict['count_col']
         conc_col = f'conc_{grp}'
@@ -104,27 +106,28 @@ def calc_by_cell(cell_plot_df, grps_dict, cell_size=None):
                                   / cell_plot_df['total_conc'])
         cell_plot_df[Hc_col] = entropy(cell_plot_df[conc_col],
                                        cell_size=cell_size)
-        cell_plot_df[Hp_col] += entropy(cell_plot_df[prop_col])
         cell_plot_df[KL_col] = kl_div(cell_plot_df[conc_col],
                                       cell_plot_df['total_conc'])
-
+        
+        # Calculate proportion entropy and KL divergence only if groups are
+        # mutually exclusive.
+        if '_' in grp:
+            is_exclusive = True
+            grp_prop = grp_total / local_sum
+            cell_plot_df['Hp'] += entropy(cell_plot_df[prop_col])
+            cell_plot_df['KL_props'] += kl_div(cell_plot_df[prop_col],
+                                               grp_prop)
         # We save the column names in grps_dict
         grp_dict['conc_col'] = conc_col
         grp_dict['prop_col'] = prop_col
         grp_dict['repr_col'] = repr_col
         grp_dict['Hc_col'] = Hc_col
         grp_dict['KL_col'] = KL_col
-        grp_label = grp_dict['grp_label']
-        grp_dict['prop_label'] = f'Proportion of {grp_label} in the cell'
-        grp_dict['conc_label'] = f'Concentration of {grp_label} in the cell'
-        grp_dict['repr_label'] = f'Representation of {grp_label} in the cell'
-        grp_dict['Hc_label'] = (
-            f'Concentration entropy of {grp_label} in the cell')
-        grp_dict['KL_label'] = f'KL divergence of {grp_label} in the cell'
         grps_dict[grp] = grp_dict
 
-    Hp_null = null_Hp(cell_plot_df, grps_dict)
-    cell_plot_df[Hp_col] = cell_plot_df[Hp_col] / Hp_null
+    if is_exclusive:
+        Hp_null = null_Hp(cell_plot_df, grps_dict)
+        cell_plot_df['Hp'] = cell_plot_df['Hp'] / Hp_null
     return cell_plot_df, grps_dict
 
 
