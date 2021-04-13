@@ -1,0 +1,278 @@
+{
+    "CH": {
+        "readable": "Switzerland",
+        "xy_proj": "EPSG:21781",
+        "local_langs": ["de", "fr", "it"],
+        "timezone": "CET"
+        },
+    "BE": {
+        "readable": "Belgium",
+        "xy_proj": "EPSG:3812",
+        "local_langs": ["fr", "nl"],
+        "timezone": "CET"
+        },
+    "LV": {
+        "readable": "Latvia",
+        "xy_proj": "EPSG:3059",
+        "local_langs": ["lv", "ru"],
+        "timezone": "EET"
+        },
+    "EE": {
+        "readable": "Estonia",
+        "xy_proj": "EPSG:3059",
+        "local_langs": ["et", "ru"],
+        "timezone": "EET"
+        },
+    "CY": {
+        "readable": "Cyprus",
+        "xy_proj": "EPSG:6312",
+        "local_langs": ["el", "tr"],
+        "timezone": "Asia/Nicosia"
+        },
+    "DZ": {
+        "readable": "Algeria",
+        "xy_proj": "EPSG:30729",
+        "local_langs": ["ar", "fr"],
+        "timezone": "Africa/Algiers",
+        "max_place_area": 1e10
+        },
+    "MA": {
+        "readable": "Morocco",
+        "xy_proj": "EPSG:26191",
+        "local_langs": ["ar", "fr"],
+        "timezone": "Africa/Casablanca",
+        "max_place_area": 1e10
+        },
+    "FI": {
+        "readable": "Finland",
+        "xy_proj": "EPSG:3067",
+        "local_langs": ["fi", "sv", "ru"],
+        "timezone": "Europe/Helsinki",
+        "max_place_area": 3e10
+        },
+    "IL": {
+        "readable": "Israel",
+        "xy_proj": "EPSG:2039",
+        "local_langs": ["iw", "ar", "en", "fr", "ru"],
+        "timezone": "Asia/Jerusalem"
+        },
+    "LB": {
+        "readable": "Lebanon",
+        "xy_proj": "EPSG:22780",
+        "local_langs": ["ar", "fr"],
+        "timezone": "Asia/Beirut"
+        },
+    "LU": {
+        "readable": "Luxembourg",
+        "xy_proj": "EPSG:2169",
+        "local_langs": ["fr", "de", "lb"],
+        "timezone": "Europe/Luxembourg"
+        },
+    "ZA": {
+        "readable": "South Africa",
+        "xy_proj": "EPSG:32734",
+        "local_langs": ["en", "af", "zu", "xh"],
+        "timezone": "Africa/Johannesburg",
+        "max_place_area": 2e9
+        },
+    "PY": {
+        "readable": "Paraguay",
+        "xy_proj": "EPSG:32720",
+        "local_langs": ["es", "gn", "pt"],
+        "timezone": "America/Asuncion",
+        "max_place_area": 1e10
+        },
+    "UY": {
+        "readable": "Uruguay",
+        "xy_proj": "EPSG:5383",
+        "local_langs": ["es", "pt"],
+        "timezone": "America/Montevideo"
+        },
+    "MY": {
+        "readable": "Malaysia",
+        "xy_proj": "EPSG:23834",
+        "local_langs": ["ms", "en", "zh"],
+        "timezone": "MST",
+        "max_place_area": 5e10
+        },
+    "ID": {
+        "readable": "Indonesia",
+        "xy_proj": "EPSG:3001",
+        "local_langs": ["id", "ms", "jw", "su"],
+        "timezone": "Asia/Jakarta",
+        "max_place_area": 5e10,
+        "min_poly_area": 4e9
+        },
+    "ES": {
+        "readable": "Spain",
+        "xy_proj": "EPSG:2062",
+        "local_langs": ["es", "ca"],
+        "timezone": "CET",
+        "regions": {
+            "Catalonia": {
+                "readable": "Catalonia",
+                "xy_proj": "EPSG:2062",
+                "timezone": "CET",
+                "local_langs": ["es", "ca"],
+                "shapefile_name": "recintos_autonomicas_inspire_peninbal_etrs89.shp",
+                "shapefile_name_col": "NAMEUNIT",
+                "shapefile_name_val": "Cataluña"
+                },
+            "Valencian Community": {
+                "readable": "Valencian Community",
+                "xy_proj": "EPSG:2062",
+                "timezone": "CET",
+                "local_langs": ["es", "ca"],
+                "shapefile_name": "recintos_autonomicas_inspire_peninbal_etrs89.shp",
+                "shapefile_name_col": "NAMEUNIT",
+                "shapefile_name_val": "Comunitat Valenciana"
+                },
+            "Balearic islands": {
+                "readable": "Balearic islands",
+                "xy_proj": "EPSG:2062",
+                "timezone": "CET",
+                "local_langs": ["es", "ca"],
+                "shapefile_name": "recintos_autonomicas_inspire_peninbal_etrs89.shp",
+                "shapefile_name_col": "NAMEUNIT",
+                "shapefile_name_val": "Illes Balears"
+                },
+            "Galicia": {
+                "readable": "Galicia",
+                "xy_proj": "EPSG:2062",
+                "timezone": "CET",
+                "local_langs": ["es", "gl"],
+                "shapefile_name": "recintos_autonomicas_inspire_peninbal_etrs89.shp",
+                "shapefile_name_col": "NAMEUNIT",
+                "shapefile_name_val": "Galicia"
+                },
+            "Basque country": {
+                "readable": "Basque country",
+                "xy_proj": "EPSG:2062",
+                "timezone": "CET",
+                "local_langs": ["es", "eu"],
+                "shapefile_name": "recintos_autonomicas_inspire_peninbal_etrs89.shp",
+                "shapefile_name_col": "NAMEUNIT",
+                "shapefile_name_val": "País Vasco/Euskadi"
+                }
+            }
+        },
+    "SG": {
+        "readable": "Singapore",
+        "xy_proj": "EPSG:3414",
+        "min_poly_area": 0,
+        "max_place_area": 5e8,
+        "local_langs": ["en", "zh", "ms", "ta"],
+        "timezone": "Asia/Singapore",
+        "shapefile_name": "SG.shp"
+        },
+    "CA": {
+        "readable": "Canada",
+        "xy_proj": "EPSG:3979",
+        "local_langs": ["en", "fr"],
+        "regions": {
+            "Quebec": {
+                "readable": "Quebec",
+                "xy_proj": "EPSG:6624",
+                "timezone": "EST",
+                "local_langs": ["en", "fr"],
+                "shapefile_name": "Quebec.shp",
+                "shapefile_name_col": "PRENAME",
+                "shapefile_name_val": "Quebec",
+                "max_place_area": 1e10
+                }
+            }
+        },
+    "US": {
+        "readable": "the USA",
+        "xy_proj": "EPSG:3086",
+        "local_langs": ["en", "es"],
+        "timezone": "America/Mexico_City",
+        "regions": {
+            "Puerto Rico": {
+                "readable": "Puerto Rico",
+                "xy_proj": "EPSG:32161",
+                "timezone": "America/Puerto_Rico",
+                "local_langs": ["en", "es"],
+                "shapefile_name": "cb_2018_us_state_5m.shp",
+                "shapefile_name_col": "NAME",
+                "shapefile_name_val": "Puerto Rico"
+                },
+            "New York City": {
+                "readable": "New York City",
+                "xy_proj": "EPSG:32118",
+                "timezone": "America/New_York",
+                "local_langs": ["en", "es", "zh", "ru", "it"],
+                "shapefile_name": "500_Cities_City_Boundaries.shp",
+                "shapefile_name_col": "NAME",
+                "shapefile_name_val": "New York"
+                },
+            "Florida": {
+                "readable": "Florida",
+                "xy_proj": "EPSG:3086",
+                "timezone": "America/New_York",
+                "local_langs": ["en", "es"],
+                "shapefile_name": "cb_2018_us_state_5m.shp",
+                "shapefile_name_col": "NAME",
+                "shapefile_name_val": "Florida",
+                "max_place_area": 5e9
+                },
+            "Louisiana": {
+                "readable": "Louisiana",
+                "xy_proj": "EPSG:3745",
+                "timezone": "America/Mexico_City",
+                "local_langs": ["en", "fr", "es"],
+                "shapefile_name": "cb_2018_us_state_5m.shp",
+                "shapefile_name_col": "NAME",
+                "shapefile_name_val": "Louisiana"
+                },
+            "Texas": {
+                "readable": "Texas",
+                "xy_proj": "EPSG:3666",
+                "timezone": "America/Mexico_City",
+                "local_langs": ["en", "es"],
+                "shapefile_name": "cb_2018_us_state_5m.shp",
+                "shapefile_name_col": "NAME",
+                "shapefile_name_val": "Texas",
+                "max_place_area": 5e9
+                },
+            "New Mexico": {
+                "readable": "New Mexico",
+                "xy_proj": "EPSG:3621",
+                "timezone": "America/Phoenix",
+                "local_langs": ["en", "es"],
+                "shapefile_name": "cb_2018_us_state_5m.shp",
+                "shapefile_name_col": "NAME",
+                "shapefile_name_val": "New Mexico"
+                },
+            "Arizona": {
+                "readable": "Arizona",
+                "xy_proj": "EPSG:3482",
+                "timezone": "America/Phoenix",
+                "local_langs": ["en", "es"],
+                "shapefile_name": "cb_2018_us_state_5m.shp",
+                "shapefile_name_col": "NAME",
+                "shapefile_name_val": "Arizona",
+                "max_place_area": 3e9
+                },
+            "Nevada": {
+                "readable": "Nevada",
+                "xy_proj": "EPSG:3607",
+                "timezone": "America/Los_Angeles",
+                "local_langs": ["en", "es"],
+                "shapefile_name": "cb_2018_us_state_5m.shp",
+                "shapefile_name_col": "NAME",
+                "shapefile_name_val": "Nevada"
+                },
+            "California": {
+                "readable": "California",
+                "xy_proj": "EPSG:3488",
+                "timezone": "America/Los_Angeles",
+                "local_langs": ["en", "es"],
+                "shapefile_name": "cb_2018_us_state_5m.shp",
+                "shapefile_name_col": "NAME",
+                "shapefile_name_val": "California",
+                "max_place_area": 3e9
+                }
+        }
+    }
+}
