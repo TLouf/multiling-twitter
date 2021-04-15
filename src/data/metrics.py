@@ -82,6 +82,9 @@ def calc_by_cell(cell_plot_df, grps_dict, cell_size=None):
     group described in grps_dict.
     '''
     is_exclusive = False
+    for grp in grps_dict.keys():
+        if '_' in grp:
+            is_exclusive = True
     total_nr_users = cell_plot_df['total_count'].sum()
     local_sum = cell_plot_df['local_count'].sum()
     cell_plot_df['total_conc'] = cell_plot_df['total_count'] / total_nr_users
@@ -89,7 +92,7 @@ def calc_by_cell(cell_plot_df, grps_dict, cell_size=None):
     cell_plot_df['KL_props'] = 0
     if cell_size is None:
         cell_size = (cell_plot_df.area)**0.5
-    
+
     for grp, grp_dict in grps_dict.items():
         count_col = grp_dict['count_col']
         conc_col = f'conc_{grp}'
@@ -108,11 +111,10 @@ def calc_by_cell(cell_plot_df, grps_dict, cell_size=None):
                                        cell_size=cell_size)
         cell_plot_df[KL_col] = kl_div(cell_plot_df[conc_col],
                                       cell_plot_df['total_conc'])
-        
+
         # Calculate proportion entropy and KL divergence only if groups are
         # mutually exclusive.
-        if '_' in grp:
-            is_exclusive = True
+        if is_exclusive:
             grp_prop = grp_total / local_sum
             cell_plot_df['Hp'] += entropy(cell_plot_df[prop_col])
             cell_plot_df['KL_props'] += kl_div(cell_plot_df[prop_col],
@@ -236,7 +238,8 @@ def grid_chisquare(cell_plot_df, obs_col, pred_col, n_samples):
     return chi2_score, chi2_score/n_samples, p_value
 
 
-def earthmover_distance(cell_plot_df, dist1_col, dist2_col, d_matrix=None):
+def earthmover_distance(cell_plot_df, dist1_col, dist2_col,
+                        norm=None, d_matrix=None):
     '''
     Computes the EMD between the concentration distributions described by the
     dictionaries `dist1_dict` and `dist2_dict`, and whose data are comprised
@@ -245,7 +248,7 @@ def earthmover_distance(cell_plot_df, dist1_col, dist2_col, d_matrix=None):
     '''
     if d_matrix is None:
         d_matrix = geo.d_matrix_from_cells(cell_plot_df)
-    
+
     dist1 = cell_plot_df[dist1_col].values
     dist2 = cell_plot_df[dist2_col].values
     # pyemd is a fast and reliable implementation. However it doesn't provide
@@ -255,8 +258,9 @@ def earthmover_distance(cell_plot_df, dist1_col, dist2_col, d_matrix=None):
     emd_value = pyemd.emd(dist1, dist2, d_matrix)
 
     # Average distance to other individual
-    norm = np.sum(cell_plot_df['total_conc'].values
-                  * np.sum(d_matrix*cell_plot_df['total_conc'].values, axis=1))
+    if norm is None:
+        norm = np.sum(cell_plot_df['total_conc'].values
+                    * np.sum(d_matrix*cell_plot_df['total_conc'].values, axis=1))
     return emd_value, norm, d_matrix
 
 
