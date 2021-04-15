@@ -12,9 +12,10 @@ import numpy as np
 import src.utils.scales as scales
 import src.utils.geometry as geo
 
+
 def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
-              title=None, log_scale=False, vmin=None, vmax=None, xy_proj=None,
-              cbar_label=None, null_color='k', figsize=None,
+              title=None, log_scale=False, vmin=None, vmax=None, vcenter=None,
+              xy_proj=None, cbar_label=None, null_color='k', figsize=None,
               borderwidth=None, cbar_lw=None, ax=None, fig=None, cax=None,
               cbar_ticks=None, annotation=None, show_axes=False,
               tight_layout=True, **kwargs):
@@ -37,7 +38,10 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
     else:
         if vmin is None:
             vmin = plot_df[metric_col].min()
-        norm = plt.Normalize(vmin=vmin, vmax=vmax)
+        if vcenter is None:
+            norm = plt.Normalize(vmin=vmin, vmax=vmax)
+        else:
+            norm = colors.TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
 
     if xy_proj:
         xlabel = 'position (km)'
@@ -91,9 +95,12 @@ def plot_grid(plot_df, area_df, metric_col='count', save_path=None, show=True,
         cbar.solids.set_edgecolor('face')
         cbar.outline.set_lw(cbar_lw)
         cbar = hide_cbar_ext_ticks(cbar, vmin, vmax)
-        cbar.ax.tick_params(direction='in', width=0.2, length=2,
-                            labelsize=plt.rcParams['font.size']-1, pad=1)
-
+        # For some reason the center tick gets a slightly-shifted float value
+        # which results in too many decimals, below is a quite dirty fix to
+        # round the values and get a prettier result.
+        if vcenter is not None:
+            cbar.set_ticks([round(y, 2) for y in cbar.get_ticks()])
+        cbar.ax.tick_params(direction='in', width=0.2, length=2, pad=1)
 
     # Setting the tight layout will make the subplots fit in to the figure area.
     fig.set_tight_layout(tight_layout)
@@ -322,20 +329,3 @@ def get_width_ratios(shape_list, ratio_lgd=0.05, latlon_proj='epsg:4326'):
         width_ratios[i] = width / height
     width_ratios[:-1] *= (1 - ratio_lgd) / width_ratios[:-1].sum()
     return width_ratios
-
-
-class MidpointNormalize(colors.Normalize):
-    """
-    Normalise the colorbar so that diverging bars work there way either side from a prescribed midpoint value)
-
-    e.g. im=ax1.imshow(array, norm=MidpointNormalize(midpoint=0.,vmin=-100, vmax=100))
-    """
-    def __init__(self, vmin=None, vmax=None, midpoint=None, clip=False):
-        self.midpoint = midpoint
-        colors.Normalize.__init__(self, vmin, vmax, clip)
-
-    def __call__(self, value, clip=None):
-        # I'm ignoring masked values and all kinds of edge cases to make a
-        # simple example...
-        x, y = [self.vmin, self.midpoint, self.vmax], [0, 0.5, 1]
-        return np.ma.masked_array(np.interp(value, x, y), np.isnan(value))
