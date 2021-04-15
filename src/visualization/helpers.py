@@ -266,6 +266,87 @@ def scatter_labelled(x_plot, y_plot, labels, xlabel=None, ylabel=None,
     return fig, ax
 
 
+def errorbar_labelled(x_plot, y_plot, labels, xlabel=None, ylabel=None,
+                      show_xerr=True, show_yerr=True,
+                      cmap='jet', figsize=None, annot=True, lgd=None,
+                      save_path=None, show=True, fig=None, ax=None,
+                      tight_layout=True, pts_s=6, **kwargs):
+    '''
+    Errorbar plot using the data (`x_plot`, `y_plot`) and labels `labels` for
+    each point. `x_plot` and `y_plot` should be each be a list containing for
+    each point the array of values corresponding to each label. The function
+    plots the point corresponidng to the mean of these arrays with bars going
+    from the lowest to the largest value contained in the array, thus showing
+    the range of values reached, each value being shown as a smaller point, with
+    a cross. The labels are either assigned to a color in a legend, or directly
+    added as annotations to the data points. The annotations are placed with
+    `adjust_text` to avoid overlapping.
+    '''
+    scatter_kwargs = kwargs.get('scatter', {'s': 6**2, 'marker': '+'})
+    if ax is None:
+        fig, ax = plt.subplots(1, figsize=figsize)
+    n_pts = len(labels)
+    x_mean = [x.mean() for x in x_plot]
+    y_mean = [y.mean() for y in y_plot]
+    # Sort data by ascending x_mean values for coloring.
+    sorted_lists = sorted(zip(x_mean, y_mean, x_plot, y_plot, labels),
+                          key=lambda t: t[0])
+    x_mean, y_mean, x_plot, y_plot, labels = zip(*sorted_lists)
+    xerr = [None] * n_pts
+    if show_xerr:
+        xerr = [np.array([[np.max(x_mean[i] - x_plot[i])],
+                          [np.max(x_plot[i] - x_mean[i])]])
+                for i in range(n_pts)]
+    yerr = [None] * n_pts
+    if show_yerr:
+        yerr = [np.array([[np.max(y_mean[i] - y_plot[i])],
+                          [np.max(y_plot[i] - y_mean[i])]])
+                for i in range(n_pts)]
+    colors = plt.cm.get_cmap(cmap, n_pts)
+    for i in range(n_pts):
+        c = colors(i)
+        _, _, barlinecols = ax.errorbar(
+            x_mean[i], y_mean[i], xerr=xerr[i], yerr=yerr[i],
+            ls='', marker='o', ms=pts_s, c=c, label=labels[i])
+        for b in barlinecols:
+            b.set_linestyle(':')
+        if show_xerr:
+            y_of_x_pts = y_mean[i].repeat(len(x_plot[i]))
+            ax.scatter(x_plot[i], y_of_x_pts, c=(c,), **scatter_kwargs)
+        if show_yerr:
+            x_of_y_pts = x_mean[i].repeat(len(y_plot[i]))
+            ax.scatter(x_of_y_pts, y_plot[i], c=(c,), **scatter_kwargs)
+
+    if annot:
+        # Add annotations to each data point, placed on the point directly.
+        texts = [ax.text(x_mean[i], y_mean[i], labels[i])
+                 for i in range(n_pts)]
+        adj_text_kw = {
+            'only_move': {'points': 'xy', 'text': 'y', 'objects': 'xy'},
+            'arrowprops': {'arrowstyle': '-', 'color': 'gray', 'lw': 0.1}}
+        adj_text_kw.update(kwargs.get('adj_text', {}))
+        # Iteratively find a better placement for annotations, avoiding overlap.
+        adjust_text(texts, x=x_mean, y=y_mean, ax=ax, **adj_text_kw)
+    bbox_extra_artists = ()
+    if lgd:
+        # Place a legend outside the graph, in the top left corner.
+        lgd_kwargs = {'bbox_to_anchor': (1.05, 1), 'loc': 2,
+                      'borderaxespad': 0, 'ncol': 1}
+        lgd_kwargs.update(kwargs.get('lgd', {}))
+        lgd = ax.legend(**lgd_kwargs)
+        bbox_extra_artists = (lgd,)
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    fig.set_tight_layout(tight_layout)
+    if save_path:
+        fig.savefig(save_path, bbox_extra_artists=bbox_extra_artists,
+                    bbox_inches='tight')
+    if show:
+        fig.show()
+    return fig, ax
+
+
 def get_ax_height_in(ax, fig):
     '''
     Get the height in inches of an `ax` drawn in a figure `fig`.
