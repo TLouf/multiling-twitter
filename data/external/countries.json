@@ -46,7 +46,7 @@
     "FI": {
         "readable": "Finland",
         "xy_proj": "EPSG:3067",
-        "local_langs": ["fi", "sv", "ru"],
+        "local_langs": ["fi", "sv"],
         "timezone": "Europe/Helsinki",
         "max_place_area": 3e10
         },
@@ -78,7 +78,7 @@
     "PY": {
         "readable": "Paraguay",
         "xy_proj": "EPSG:32720",
-        "local_langs": ["es", "gn", "pt"],
+        "local_langs": ["es", "gn"],
         "timezone": "America/Asuncion",
         "max_place_area": 1e10
         },
@@ -98,15 +98,29 @@
     "ID": {
         "readable": "Indonesia",
         "xy_proj": "EPSG:3001",
-        "local_langs": ["id", "ms", "jw", "su"],
+        "local_langs": ["id", "jw", "su"],
         "timezone": "Asia/Jakarta",
         "max_place_area": 5e10,
-        "min_poly_area": 4e9
+        "min_poly_area": 4e9,
+        "regions": {
+            "Java": {
+                "readable": "Java",
+                "xy_proj": "EPSG:3001",
+                "local_langs": ["id", "jw", "su"],
+                "timezone": "Asia/Jakarta",
+                "max_place_area": 5e10,
+                "min_poly_area": 4e9,
+                "bpoly": [
+                    [103.61, -7.19], [106.31, -5.58], [114.74, -6.77],
+                    [114.50, -8.05], [114.4167, -8.0981], [114.3923, -8.2042],
+                    [115.05, -9.21]]
+                }
+            }
         },
     "ES": {
         "readable": "Spain",
         "xy_proj": "EPSG:2062",
-        "local_langs": ["es", "ca"],
+        "local_langs": ["es", "ca", "gl", "eu"],
         "timezone": "CET",
         "regions": {
             "Catalonia": {
