@@ -123,8 +123,8 @@ def create_grid(shape_df, cell_size, xy_proj='epsg:3857', intersect=False,
     return cells_df, cells_in_shape_df, Nx-1, Ny-1
 
 
-def extract_shape(shape_df, shapefile_dict,
-                  min_area=None, simplify_tol=None, xy_proj='epsg:3857'):
+def extract_shape(shape_df, shapefile_dict, bpoly=None, simplify_tol=None,
+                  min_area=None, xy_proj='epsg:3857', latlon_proj='epsg:4326'):
     '''
     Extracts the shape of the area of interest, which should be located on the
     row where the string in the `shapefile_dict['col'],` of `shape_df` starts
@@ -137,6 +137,10 @@ def extract_shape(shape_df, shapefile_dict,
     if col in shape_df.columns:
         shape_df = shape_df.loc[
             shape_df[col].str.startswith(shapefile_dict['val'])]
+    if bpoly:
+        bpoly_geodf = geopd.GeoDataFrame(geometry=[Polygon(bpoly)],
+                                         crs=latlon_proj)
+        shape_df = geopd.overlay(shape_df, bpoly_geodf, how='intersection')
     shape_df = shape_df.to_crs(xy_proj)
     shapely_geo = shape_df.geometry.iloc[0]
 
