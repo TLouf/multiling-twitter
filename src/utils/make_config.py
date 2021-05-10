@@ -26,21 +26,12 @@ def area_dict(countries_study_data, cc, region=None):
 
 def shapefile_dict(region_dict, cc, region=None,
                    default_shapefile='CNTR_RG_01M_2016_4326.shp'):
-    shapefile_name = region_dict.get('shapefile_name')
-    if shapefile_name is None:
-        shapefile_name = default_shapefile
-    if region == cc or region is None:
-        shapefile_name_col = 'FID'
-        shapefile_name_val = cc
-    else:
-        shapefile_name_col = region_dict['shapefile_name_col']
-        shapefile_name_val = region_dict['shapefile_name_val']
     shapefile_res = {
         'cc': cc,
         'region': region,
-        'name': shapefile_name,
-        'col': shapefile_name_col,
-        'val': shapefile_name_val}
+        'name': region_dict.get('shapefile_name', default_shapefile),
+        'col': region_dict.get('shapefile_name_col', 'FID'),
+        'val': region_dict.get('shapefile_name_val', cc)}
     return shapefile_res
 
 
