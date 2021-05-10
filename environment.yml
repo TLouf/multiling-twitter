@@ -154,7 +154,7 @@ dependencies:
   - numpy=1.20.1=py37haa41c4c_0
   - olefile=0.46=pyh9f0ad1d_1
   - openjpeg=2.4.0=hf7af979_0
-  - openssl=1.1.1j=h7f98852_0
+  - openssl=1.1.1k=h7f98852_0
   - packaging=20.9=pyh44b312d_0
   - pandas=1.2.3=py37hdc94413_0
   - pandoc=2.11.4=h7f98852_0
@@ -196,6 +196,7 @@ dependencies:
   - python-louvain=0.15=pyhd3deb0d_0
   - python_abi=3.7=1_cp37m
   - pytz=2021.1=pyhd8ed1ab_0
+  - pyxlsb=1.0.8=pyhd8ed1ab_0
   - pyyaml=5.4.1=py37h5e8e339_0
   - pyzmq=22.0.1=py37h499b945_0
   - readline=8.0=he28a2e2_2
@@ -266,6 +267,7 @@ dependencies:
     - gpustat==0.6.0
     - grpcio==1.35.0
     - hiredis==1.1.0
+    - ipfn==1.4.1
     - multidict==5.1.0
     - nvidia-ml-py3==7.352.0
     - opencensus==0.7.12
