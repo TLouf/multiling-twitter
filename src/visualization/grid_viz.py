@@ -122,7 +122,8 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
                      mapbox_style='stamen-toner', mapbox_zoom=6,
                      colorscale=None, plotly_renderer='iframe_connected',
                      save_path=None, show=False, latlon_proj='epsg:4326',
-                     alpha=0.8, access_token=None, min_count=1):
+                     alpha=0.8, access_token=None, min_count=1, 
+                     include_plotlyjs=True):
     '''
     Plots an interactive Choropleth map with Plotly. The Choropleth data are in
     'cell_plot_df', for each group described in 'grps_dict'.
@@ -255,7 +256,8 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
     fig = go.Figure(data=data, layout=layout)
     use_iframe_renderer = plotly_renderer.startswith('iframe')
     if save_path:
-        plotly.offline.plot(fig, filename=save_path, auto_open=False)
+        plotly.offline.plot(fig, filename=save_path, auto_open=False,
+                            include_plotlyjs=include_plotlyjs)
     if show:
         # With the 'iframe' renderer, a standalone HTML is created in a new
         # folder iframe_figures/, and the files are named according to the cell
@@ -268,7 +270,7 @@ def plot_interactive(raw_cell_plot_df, shape_df, grps_dict, metric_dict,
                 src=save_path, width=900, height=600))
         else:
             fig.show(renderer=plotly_renderer, width=900, height=600)
-    return fig, buttons
+    return fig
 
 
 def config_log_plot(z_series, vmin, vmax):
