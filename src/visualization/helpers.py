@@ -273,7 +273,7 @@ def errorbar_labelled(x_plot, y_plot, labels, xlabel=None, ylabel=None,
                       tight_layout=True, pts_s=6, **kwargs):
     '''
     Errorbar plot using the data (`x_plot`, `y_plot`) and labels `labels` for
-    each point. `x_plot` and `y_plot` should be each be a list containing for
+    each point. `x_plot` and `y_plot` should each be a list containing for
     each point the array of values corresponding to each label. The function
     plots the point corresponidng to the mean of these arrays with bars going
     from the lowest to the largest value contained in the array, thus showing
@@ -342,6 +342,75 @@ def errorbar_labelled(x_plot, y_plot, labels, xlabel=None, ylabel=None,
     if save_path:
         fig.savefig(save_path, bbox_extra_artists=bbox_extra_artists,
                     bbox_inches='tight')
+    if show:
+        fig.show()
+    return fig, ax
+
+
+def cat_errorbar_labelled(y_plot, labels, xlabel=None, ylabel=None,
+                          show_yerr=True, cmap='jet', figsize=None, annot=True,
+                          save_path=None, show=True, fig=None, ax=None,
+                          tight_layout=True, pts_s=6, **kwargs):
+    '''
+    Errorbar plot using the data `y_plot` and labels `labels` for each point.
+    `y_plot` should be a list containing for each point the array of values
+    corresponding to each label. The function plots the points with bars going
+    from the lowest to the largest value contained in the array, thus showing
+    the range of values reached. The labels are added as annotations to the data
+    points. The annotations are placed with `adjust_text` to avoid overlapping.
+    '''
+    scatter_kwargs = kwargs.get('scatter', {'s': 6**2, 'marker': '+'})
+    if ax is None:
+        fig, ax = plt.subplots(1, figsize=figsize)
+    n_pts = len(labels)
+    cmap = plt.cm.get_cmap(cmap, n_pts)
+    colors = [cmap(i) for i in range(n_pts)]
+    x_plot = np.arange(1, n_pts+1)
+    y_mean = [y.mean() for y in y_plot]
+    # Sort data's xaxis position by ascending y_mean values.
+    sorted_lists = sorted(zip(y_mean, y_plot, labels, colors),
+                          key=lambda t: t[0])
+    y_mean, y_plot, labels, colors = zip(*sorted_lists)
+    yerr = [None] * n_pts
+    if show_yerr:
+        yerr = [np.array([[np.max(y_mean[i] - y_plot[i])],
+                          [np.max(y_plot[i] - y_mean[i])]])
+                for i in range(n_pts)]
+        x_of_y_pts = [x_plot[i].repeat(len(y_plot[i])) for i in range(n_pts)]
+    
+    add_objects = []
+    for i in range(n_pts):
+        c = colors[i]
+        plotline, _, barlinecols = ax.errorbar(
+            x_plot[i], y_mean[i], yerr=yerr[i], elinewidth=1,
+            ls='', marker=None, ms=pts_s, c=c, label=labels[i])
+        for b in barlinecols:
+            b.set_linestyle(':')
+        if show_yerr:
+            sub_pts = ax.scatter(x_of_y_pts[i], y_plot[i],
+                                 c=(c,), **scatter_kwargs)
+            add_objects.append(sub_pts)
+
+    if annot:
+        # Add annotations to each errorbar, alternatively on the highest and
+        # lowest point.
+        texts = []
+        for i in range(n_pts):
+            y_text = y_plot[i].min() if i % 2 == 0 else y_plot[i].max()
+            texts.append(ax.text(x_plot[i], y_text, labels[i]))
+        adj_text_kw = {
+            'only_move': {'points': 'xy', 'text': 'xy', 'objects': 'xy'},
+            'arrowprops': {'arrowstyle': '-', 'color': 'gray', 'lw': 0.1}}
+        adj_text_kw.update(kwargs.get('adj_text', {}))
+        # Iteratively find a better placement for annotations, avoiding overlap.
+        adjust_text(texts, add_objects=add_objects, ax=ax, **adj_text_kw)
+
+    ax.xaxis.set_ticks([])
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    fig.set_tight_layout(tight_layout)
+    if save_path:
+        fig.savefig(save_path, bbox_inches='tight')
     if show:
         fig.show()
     return fig, ax
