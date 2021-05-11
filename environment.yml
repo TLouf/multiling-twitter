@@ -1,4 +1,4 @@
-name: ./.cenv
+name: .cenv
 channels:
   - conda-forge
   - defaults
