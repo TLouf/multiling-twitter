@@ -7,11 +7,14 @@ multilingualism using Twitter data. It is part of my PhD at the
 [David Sanchez](https://ifisc.uib-csic.es//users/dsanchez/). The code is used 
 to analyse geo-tagged tweets sent within a set of multilingual countries, which
 were acquired over the years by the IFISC' data engineer, Antonia Tugores, using
-the [streaming endpoint of the Twitter API](https://developer.twitter.com/en/docs/tweets/sample-realtime/overview/get_statuses_sample). We attributed one or more languages
-to users, and a cell of residence, among the cells we define on a regular grid
-covering each region of interest. We visualise and then analyse the
-distributions of local languages using a set of metrics. The end goal is to
-assess the existing models of language competition.
+the [streaming endpoint of the Twitter API](https://developer.twitter.com/en/docs/tweets/sample-realtime/overview/get_statuses_sample).
+We attributed one or more languages to users, and a cell of residence, among the
+cells we define on a regular grid covering each region of interest. We visualise
+and then analyse the distributions of local languages using a set of metrics.
+The end goal is to assess the existing models of language competition.
+
+Instead of delving into details here, I recommend you have a look at the
+preprint related to this work on the arXiv: https://arxiv.org/abs/2105.02570.
 
 ## Project Organization
 ```
@@ -64,7 +67,17 @@ script:
 ```
 
 ## Install instructions
-Install all "classic" dependencies with
+In a terminal, navigate to this directory and simply run `make`.
+
+### conda
+If you have `conda` installed, you should have seen 
+`>>> Detected conda, creating conda environment.` popping up in your terminal,
+if that's the case you should be good to go!
+
+### pip
+Otherwise, your environment will be built with `pip` in a directory called
+`.venv`. 
+All "classic" dependencies  have already been installed with
 
 ```
 pip install -r requirements.txt
@@ -74,22 +87,13 @@ To install `pycld3`, you'll need to follow the instructions from there:
 https://github.com/bsolomon1124/pycld3. Windows doesn't seem to be supported
 for now.
 
-Then for `geopandas` and its dependencies, it depends on your platform.
+Then for `geopandas` and its dependencies, it's a bit more complicated, and it depends on your platform.
 
 #### Linux
 The problem here is to install `rtree`, and in particular its C dependency
-`libspatialindex`. There are three solutions to this.
+`libspatialindex`. There are two solutions to this.
 
-- The first is simple, but makes you use `conda`, so your whole environment then
-  needs to be built with `conda`:
-
-
-```
-conda install --file requirements_geo.txt
-```
-
-
-- The second solution just takes one more command, but installs `rtree`
+- The first solution just takes one more command, but installs `rtree`
   system-wide. You simply do
 
 ```
@@ -98,7 +102,7 @@ pip3 install -r requirements_geo.txt
 ```
 
 
-- The third is the most flexible, as it allows to install `rtree` in your
+- The second is the most flexible, as it allows to install `rtree` in your
   environment, and  to install `libspatialindex` without root privileges.
   You first install `libspatialindex` in your local user directory
 
