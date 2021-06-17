@@ -2,7 +2,7 @@ from scipy.stats import chisquare
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
-import pyemd
+import ot
 import src.visualization.helpers as helpers_viz
 import src.utils.geometry as geo
 
@@ -239,24 +239,25 @@ def grid_chisquare(cell_plot_df, obs_col, pred_col, n_samples):
 
 
 def earthmover_distance(cell_plot_df, dist1_col, dist2_col,
-                        norm=None, d_matrix=None):
+                        norm=None, d_matrix=None, **ot_emd_kwargs):
     '''
-    Computes the EMD between the concentration distributions described by the
-    dictionaries `dist1_dict` and `dist2_dict`, and whose data are comprised
-    within the columns of `cell_plot_df`. Also returns a norm, defined as the
-    average distance between individuals.
+    Computes the EMD between the concentration distributions contained in the
+    columns `dist1_col` and `dist2_col` of `cell_plot_df`. Also returns a norm,
+    defined as the average distance between individuals.
     '''
     if d_matrix is None:
         d_matrix = geo.d_matrix_from_cells(cell_plot_df)
 
     dist1 = cell_plot_df[dist1_col].values
     dist2 = cell_plot_df[dist2_col].values
-    # pyemd is a fast and reliable implementation. However it doesn't provide
-    # the EMD itself but only the mnimised work, one has to divide by the sum
-    # of all flows (given by `pyemd.emd_with_flow`) to get the EMD. Here we
-    # don't need to do it as it's applied to well defined distributions.
-    emd_value = pyemd.emd(dist1, dist2, d_matrix)
-
+    # ot.emd is a fast (faster than pyemd) and reliable implementation, which
+    # returns the matrix of optimal flows. The EMD is then obtained by summing
+    # over the element-wise produt of the flow and distance matrices,
+    # normalizing by the sum of the flows. In our use case, as we deal with
+    # distributions, the sum of flows should be equel to 1. We keep the division
+    # here for generality.
+    ot_matrix = ot.emd(dist1, dist2, d_matrix, **ot_emd_kwargs)
+    emd_value = np.sum(ot_matrix * d_matrix) / np.sum(ot_matrix)
     # Average distance to other individual
     if norm is None:
         norm = np.sum(cell_plot_df['total_conc'].values

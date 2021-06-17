@@ -256,7 +256,7 @@ def make_places_geodf(raw_places_df, shape_df, latlon_proj='epsg:4326',
 def d_matrix_from_cells(cell_plot_df):
     '''
     Generates a matrix of distances between pairs of cell centroids, for every
-    combination of cells found in `cell_plot_df`.
+    pair of cells found in `cell_plot_df`.
     '''
     n_cells = cell_plot_df.shape[0]
     d_matrix = np.zeros((n_cells, n_cells))
