@@ -13,15 +13,20 @@ cells we define on a regular grid covering each region of interest. We visualise
 and then analyse the distributions of local languages using a set of metrics.
 The end goal is to assess the existing models of language competition.
 
+Raw data (which I cannot give access to for privacy reasons) are processed in `notebooks/1.1.first_whole_analysis.ipynb`, which return the counts of speakers by language and by cell of residence, available on [figshare](https://figshare.com/articles/dataset/Spatial_distributions_of_languages_extracted_from_Twitter/14339321). These can then be analysed in `notebooks/1.2.mixing_metrics_tests.ipynb` and `notebooks/1.3.EMD.ipynb`.
+
 Instead of delving into details here, I recommend you have a look at the
-preprint related to this work on the arXiv: https://arxiv.org/abs/2105.02570.
+article published in [Physical Review Research](https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.3.043146), also available on [arXiv](https://arxiv.org/abs/2105.02570).
+
 
 ## Project Organization
 ```
 ├── LICENSE
 ├── README.md          <- The top-level README for developers using this project.
+├── Makefile           <- Makefile to setup the project
 ├── .env (x)           <- File containing environment variables loaded with dotenv
-├── requirements.txt   <- The requirements file for reproducing the analysis environment
+├── environment.yml    <- The requirements file for reproducing the analysis environment with conda
+├── requirements.txt   <- The requirements file for reproducing the analysis environment with pip
 ├── requirements_geo.txt   <- The requirements file for geographical packages, which may require
 |                             prior manual steps
 ├── data (x)
@@ -41,6 +46,8 @@ preprint related to this work on the arXiv: https://arxiv.org/abs/2105.02570.
 │   ├── __init__.py    <- Makes src a Python module
 │   │
 │   ├── data           <- Scripts to pre-process data
+│   │
+│   ├── models         <- Scripts to simulate the models
 │   │
 │   ├── utils          <- Utility scripts
 │   │
