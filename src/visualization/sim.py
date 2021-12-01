@@ -192,7 +192,7 @@ def phase_space_eg(converg_dict, list_s, list_q, plot_params, c_values,
         ax.tick_params(left=False, labelleft=False)
 
     cmap = LinearSegmentedColormap.from_list('my_cmap', colors[[0, 1, 3]])
-    plot_kwargs = {'edgecolor': (0.9, 0.9, 0.9), 'linewidths': 0.01,
+    plot_kwargs = {'edgecolor': (0.9, 0.9, 0.9), 'linewidths': 0.1,
                    'cmap': cmap, 'rasterized': rasterized}
     if c == c_values[-1]:
         cbar_label = r'French polarization'
@@ -237,7 +237,7 @@ def scatter_interp(fig, ax, x_plot, y_plot, t_plot, stable_idc, arrow_steps,
             '',
             xytext=(xi[start_idx], yi[start_idx]),
             xy=(xi[start_idx + 1], yi[start_idx + 1]),
-            arrowprops={'arrowstyle': '->', 'color': c, 'lw': 0.5}, size=3)
+            arrowprops={'arrowstyle': '->', 'color': c, 'lw': 1}, size=8)
 
     for (t, x, y) in zip(t_plot[stable_idc],
                          x_plot[stable_idc],
@@ -245,7 +245,7 @@ def scatter_interp(fig, ax, x_plot, y_plot, t_plot, stable_idc, arrow_steps,
         ax.scatter(x, y, label=str(t), c=(plasma_cmap(t),), zorder=2.5,
                    **scatter_kwargs)
     ax.legend(title='step', handletextpad=0.5, labelspacing=0.3,
-              fontsize=plt.rcParams['font.size']-1)
+              fontsize=plt.rcParams['font.size']-1, loc='center left')
 
     remain_idc = [i for i in range(len(t_plot)) if i not in stable_idc]
     for (t, x, y) in zip(t_plot[remain_idc],

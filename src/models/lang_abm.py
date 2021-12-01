@@ -7,7 +7,7 @@ LOGGER = logging.getLogger(__name__)
 
 def simu_wrapper(user_df, cells_in_area_df, model_fun, lings, t_steps,
                  prestige_A=None, simu_step_file_format=None, hist_cell_df=None,
-                 **model_fun_kwargs):
+                 work_add_count_A=0, work_add_count_B=0, **model_fun_kwargs):
     '''
     Simulation wrapper, iterating `t_steps` time the model of `model_fun` over
     the agents in `user_df`. Logs the global counts and saves the cell
@@ -17,10 +17,20 @@ def simu_wrapper(user_df, cells_in_area_df, model_fun, lings, t_steps,
     and then it's initialised.
     '''
     LOGGER.info(user_df.groupby('ling').size())
+    # if isinstance(work_add_count_A, pd.Series):
+    #     user_df = user_df.join(work_add_count_A.rename('work_add_count_A'), on='work_cell_id')
+    # if isinstance(work_add_count_B, pd.Series):
+    #     user_df = user_df.join(work_add_count_B.rename('work_add_count_B'), on='work_cell_id')
+    # user_df = user_df.fillna(0)
     # res and work cells don't change so we can recalculate them from an
     # iterated user_df.
-    cell_res = user_df.groupby('res_cell_id').size()
-    cell_workers = user_df.groupby('work_cell_id').size()
+    res_grouper = user_df.groupby('res_cell_id')
+    cell_res = res_grouper.size()
+    work_grouper = user_df.groupby('work_cell_id')
+    cell_workers = (
+        work_grouper.size()
+                    .add(work_add_count_A + work_add_count_B, fill_value=0)
+                    .rename_axis('work_cell_id'))
     cells_counts_geodf = cells_in_area_df[['geometry']].copy()
     for ling in lings:
         cells_counts_geodf['count_'+ling] = None
@@ -43,6 +53,7 @@ def simu_wrapper(user_df, cells_in_area_df, model_fun, lings, t_steps,
 
     t_0 = len(hist_cell_df) // 2
     for t in range(t_steps):
+        print(f'* step {t+t_0} *', end='\r')
         LOGGER.info(f'* step {t+t_0} *')
         # at home
         user_df = model_step_wrapper(
@@ -59,7 +70,8 @@ def simu_wrapper(user_df, cells_in_area_df, model_fun, lings, t_steps,
         # at work
         user_df = model_step_wrapper(
             user_df, cell_workers, model_fun, lings,
-            prestige_A=prestige_A['work'], **model_fun_kwargs)
+            prestige_A=prestige_A['work'], add_count_A=work_add_count_A,
+            add_count_B=work_add_count_B, **model_fun_kwargs)
         cell_step_res = user_to_cell(user_df, cells_counts_geodf)
         if simu_step_file_format:
             simu_res_file_path = simu_step_file_format.format(t_step=N_step+1)
@@ -71,7 +83,8 @@ def simu_wrapper(user_df, cells_in_area_df, model_fun, lings, t_steps,
 
 
 def model_step_wrapper(user_df, cell_pop, model_fun, lings,
-                       prestige_A=0.5, **model_fun_kwargs):
+                       prestige_A=0.5, add_count_A=0,
+                       add_count_B=0, **model_fun_kwargs):
     '''
     Wrapper for a step of a model `model_fun`, updating the sigmas, the prestige
     if required, and passing all required parameters to `model_fun`.
@@ -82,7 +95,8 @@ def model_step_wrapper(user_df, cell_pop, model_fun, lings,
     cell_id_col = cell_pop.index.name
     all_cells = cell_pop.index
     sigma_A, sigma_B, global_sigma_A, global_sigma_B = get_sigmas(
-        user_df, mono_A_mask, mono_B_mask, cell_pop)
+        user_df, mono_A_mask, mono_B_mask, cell_pop,
+        add_count_A=add_count_A, add_count_B=add_count_B)
     if prestige_A is None:
         prestige_A = get_prestige(sigma_A, sigma_B, global_sigma_A,
                                   global_sigma_B)
@@ -240,9 +254,11 @@ def bi_pref_step(user_df, A_mask, B_mask, lings, rate=1, a=1, mu=0.01, c=1,
             user_df['sigma_B'] + (1-q) * sigma_AB)**a)
     A_to_AB = user_df['draw'] < rate * c * prestige_B * (
         user_df['sigma_B'] + (1-q) * sigma_AB)**a
+    A_to_AB = A_to_AB & A_mask
     B_to_AB = user_df['draw'] < rate * c * prestige_A * (
         user_df['sigma_A'] + q * sigma_AB)**a
-    to_AB_mask = (~dies_mask) & ((A_mask & A_to_AB) | (B_mask & B_to_AB))
+    B_to_AB = B_to_AB & B_mask
+    to_AB_mask = (~dies_mask) & (A_to_AB | B_to_AB)
     user_df.loc[AB_to_A_mask, 'ling'] = lings[0]
     user_df.loc[AB_to_B_mask, 'ling'] = lings[1]
     user_df.loc[to_AB_mask, 'ling'] = lings[2]
@@ -386,17 +402,24 @@ def get_prestige(sigma_A, sigma_B, global_sigma_A, global_sigma_B,
     return cell_prestige_A
 
 
-def get_sigmas(user_df, mono_A_mask, mono_B_mask, cell_pop):
+def get_sigmas(user_df, mono_A_mask, mono_B_mask, cell_pop, add_count_A=0,
+               add_count_B=0):
     '''
     Calculates the proportions of lingual groups A and B in each cell, as well
     as the global proportions, using the dataframe giving the ling group, cell
     of residence and of work of each user `user_df`. Calculates the proportion
     on either the work or residence cell, for which the total population is
-    given in `cell_pop`.
+    given in `cell_pop`. add_count kwargs to add external population at work step.
     '''
     cell_id_col = cell_pop.index.name
-    count_A = user_df.loc[mono_A_mask].groupby(cell_id_col).size()
-    count_B = user_df.loc[mono_B_mask].groupby(cell_id_col).size()
+    count_A = (user_df.loc[mono_A_mask]
+                      .groupby(cell_id_col)
+                      .size()
+                      .add(add_count_A, fill_value=0))
+    count_B = (user_df.loc[mono_B_mask]
+                      .groupby(cell_id_col)
+                      .size()
+                      .add(add_count_B, fill_value=0))
     sigma_A = (count_A / cell_pop).fillna(0)
     sigma_B = (count_B / cell_pop).fillna(0)
     global_sigma_A = count_A.sum() / cell_pop.sum()
@@ -404,6 +427,20 @@ def get_sigmas(user_df, mono_A_mask, mono_B_mask, cell_pop):
     return sigma_A, sigma_B, global_sigma_A, global_sigma_B
 
 
+def opt_get_sigmas(user_df, cell_pop, 
+                   add_count_A=0, add_count_B=0):
+    cell_id_col = cell_pop.index.name
+    
+    count_A = (user_df.groupby([cell_id_col, 'ling'])['ling']
+                        .transform('size'))
+    
+    user_df['sigma_A'] = (count_A + add_count_A) / cell_pop
+    # if isinstance(add_count_B, pd.Series):
+    count_B = (user_df.groupby([cell_id_col, 'ling'])['ling']
+                        .transform('size'))
+    user_df['sigma_B'] = (count_B + add_count_B) / cell_pop
+    return user_df
+    
 
 def user_to_cell(user_df, cells_counts_geodf):
     '''

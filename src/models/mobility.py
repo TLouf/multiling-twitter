@@ -86,6 +86,7 @@ def commut_by_grp(cell_mobility, cell_plot_df, plot_lings_dict):
                        + ['prop_'+ling for ling in lings])
     cell_mobility = cell_mobility.join(cell_plot_df[count_prop_cols],
                                        on='from_cell_id', how='inner')
+    cell_mobility = cell_mobility.loc[(slice(None), cell_plot_df.index), :]
     new_nr_commuters = cell_mobility['cell_count'].sum()
     print(f'We lost {nr_commuters - new_nr_commuters} commuters out of '
           f'{nr_commuters} because of holes in cell_plot_df')
