@@ -1,5 +1,8 @@
 # Multilingualism study with Twitter data
 
+[![figshare](https://img.shields.io/badge/doi-10.6084%2Fm9.figshare.20627238.v1-blue.svg?style=flat-square)](https://doi.org/10.6084/m9.figshare.20627238)
+[![article](https://img.shields.io/static/v1?label=article&message=10.1103%2FPhysRevResearch.3.043146&color=success&style=flat-square)](https://doi.org/10.1103/PhysRevResearch.3.043146)
+
 This repository contains code I wrote as part of my work on a project studying
 multilingualism using Twitter data. It is part of my PhD at the
 [IFISC](https://ifisc.uib-csic.es/en/), under the supervision of 
@@ -13,10 +16,17 @@ cells we define on a regular grid covering each region of interest. We visualise
 and then analyse the distributions of local languages using a set of metrics.
 The end goal is to assess the existing models of language competition.
 
-Raw data (which I cannot give access to for privacy reasons) are processed in `notebooks/1.1.first_whole_analysis.ipynb`, which return the counts of speakers by language and by cell of residence, available on [figshare](https://figshare.com/articles/dataset/Spatial_distributions_of_languages_extracted_from_Twitter/14339321). These can then be analysed in `notebooks/1.2.mixing_metrics_tests.ipynb` and `notebooks/1.3.EMD.ipynb`.
+Raw data (which I cannot give access to for privacy reasons) are processed in
+`notebooks/1.1.first_whole_analysis.ipynb`, which return the counts of speakers
+by language and by cell of residence, available on
+[figshare](https://figshare.com/articles/dataset/Spatial_distributions_of_languages_extracted_from_Twitter/14339321).
+These can then be analysed in `notebooks/1.2.mixing_metrics_tests.ipynb` and
+`notebooks/1.3.EMD.ipynb`.
 
-Instead of delving into details here, I recommend you have a look at the
-article published in [Physical Review Research](https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.3.043146), also available on [arXiv](https://arxiv.org/abs/2105.02570).
+Instead of delving into details here, I recommend you have a look at the article
+published in [Physical Review
+Research](https://journals.aps.org/prresearch/abstract/10.1103/PhysRevResearch.3.043146),
+also available on [arXiv](https://arxiv.org/abs/2105.02570).
 
 
 ## Project Organization
